@@ -926,7 +926,6 @@
             </div>
           </div>
           <div class="tv-ticker-actions">
-            <button id="btn-tv-voice-mode" type="button" style="background:rgba(2,132,199,0.25);border-color:#38bdf8;color:#7dd3fc;" title="Chuyển đổi nguồn giọng đọc tiếng Việt">🎙️ Tiếng Việt: Cloud Chuẩn TV ▾</button>
             <button id="btn-tv-prev-step" type="button" title="Đoạn trước">⏮ Trước</button>
             <button id="btn-tv-pause-resume" type="button" title="Tạm dừng / Tiếp tục">⏸ Tạm dừng</button>
             <button id="btn-tv-next-step" type="button" title="Đoạn kế">⏭ Kế tiếp</button>
@@ -3809,21 +3808,16 @@
 
     // =========================================================================
     // HỆ THỐNG PHÁT THANH VIÊN BẢN TIN THỜI TIẾT TRUYỀN HÌNH (TV NEWS BROADCAST)
-    // Hệ thống âm thanh kép:
-    // 1) Cloud Vietnamese TTS (Google TTS Online) - 100% tiếng Việt chuẩn truyền hình,
-    //    chạy mượt mà trên mọi máy tính Windows/Mac/iOS/Android mà không cần cài thêm gói giọng nói.
-    // 2) Native Web Speech API với bộ lọc nhận diện thông minh tiếng Việt (vi-VN, HoaiMy, Linh, NamMinh)
+    // Âm thanh mở đầu Web Audio API + Giọng đọc tiếng Việt Web Speech API + 
+    // Đồng bộ camera bay trực tiếp theo từng phân đoạn vùng miền
     // =========================================================================
     let tvBroadcastState = {
       isActive: false,
       isPaused: false,
-      isSpeakingSingle: false,
       currentStep: 0,
       segments: [],
       speechRate: 1.0,
-      voiceEngine: "cloud", // 'cloud' (Google TTS tiếng Việt chuẩn) hoặc 'device' (Web Speech API)
       currentUtterance: null,
-      activeAudio: null,
       cachedVoices: []
     };
 
@@ -3864,7 +3858,6 @@
       if (window.speechSynthesis.onvoiceschanged !== undefined) {
         window.speechSynthesis.onvoiceschanged = () => {
           tvBroadcastState.cachedVoices = window.speechSynthesis.getVoices() || [];
-          updateVoiceButtonDisplay();
         };
       }
     }
@@ -3873,147 +3866,9 @@
     function getBestVietnameseVoice() {
       if (!window.speechSynthesis) return null;
       const voices = tvBroadcastState.cachedVoices.length > 0 ? tvBroadcastState.cachedVoices : window.speechSynthesis.getVoices() || [];
-      // Lọc nghiêm ngặt chỉ lấy giọng tiếng Việt thật sự, TUYỆT ĐỐI không lấy voices[0] nếu không phải tiếng Việt!
-      const viVoice = voices.find((v) => {
-        const lang = (v.lang || "").toLowerCase().replace("_", "-");
-        const name = (v.name || "").toLowerCase();
-        return (
-          lang.startsWith("vi") ||
-          name.includes("vietnam") ||
-          name.includes("vietnamese") ||
-          name.includes("tiếng việt") ||
-          name.includes("hoài my") ||
-          name.includes("hoaimy") ||
-          name.includes("nam minh") ||
-          name.includes("namminh") ||
-          name.includes("linh") ||
-          name.includes("an") ||
-          name.includes("mai")
-        );
-      });
-      return viVoice || null;
-    }
-
-    // Chia văn bản dài thành các đoạn nhỏ dưới 160 ký tự theo dấu chấm phẩy để Google TTS đọc trôi chảy
-    function splitTextIntoTtsChunks(text, maxLen = 160) {
-      const sentences = text.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [text];
-      const chunks = [];
-      let cur = "";
-      sentences.forEach((s) => {
-        const trimmed = s.trim();
-        if (!trimmed) return;
-        if ((cur + " " + trimmed).trim().length <= maxLen) {
-          cur = (cur + " " + trimmed).trim();
-        } else {
-          if (cur) chunks.push(cur);
-          if (trimmed.length > maxLen) {
-            const commas = trimmed.split(/,\s*/);
-            let subCur = "";
-            commas.forEach((c) => {
-              if ((subCur + ", " + c).trim().length <= maxLen) {
-                subCur = (subCur ? subCur + ", " : "") + c;
-              } else {
-                if (subCur) chunks.push(subCur);
-                subCur = c;
-              }
-            });
-            if (subCur) chunks.push(subCur);
-            cur = "";
-          } else {
-            cur = trimmed;
-          }
-        }
-      });
-      if (cur) chunks.push(cur);
-      return chunks.length > 0 ? chunks : [text];
-    }
-
-    // Phát giọng đọc tiếng Việt chất lượng cao qua Cloud Audio
-    function speakWithCloudTts(text, onEndCallback) {
-      stopAnyActiveSpeech();
-      const chunks = splitTextIntoTtsChunks(text, 160);
-      let chunkIdx = 0;
-
-      function playNextChunk() {
-        if (!tvBroadcastState.isActive && !tvBroadcastState.isSpeakingSingle) return;
-        if (tvBroadcastState.isPaused) return;
-
-        if (chunkIdx >= chunks.length) {
-          if (onEndCallback) onEndCallback();
-          return;
-        }
-
-        const chunkText = chunks[chunkIdx++];
-        const ttsUrl = "https://translate.google.com/translate_tts?ie=UTF-8&tl=vi&client=tw-ob&q=" + encodeURIComponent(chunkText);
-        const audio = new Audio(ttsUrl);
-        audio.playbackRate = tvBroadcastState.speechRate;
-        tvBroadcastState.activeAudio = audio;
-
-        audio.onended = () => {
-          if (tvBroadcastState.isActive || tvBroadcastState.isSpeakingSingle) {
-            playNextChunk();
-          }
-        };
-
-        audio.onerror = () => {
-          speakWithDeviceVoice(chunkText, () => {
-            playNextChunk();
-          });
-        };
-
-        audio.play().catch((err) => {
-          speakWithDeviceVoice(chunkText, () => {
-            playNextChunk();
-          });
-        });
-      }
-
-      playNextChunk();
-    }
-
-    // Phát giọng đọc qua Web Speech API (chỉ dùng khi thiết bị có giọng tiếng Việt)
-    function speakWithDeviceVoice(text, onEndCallback) {
-      if (!("speechSynthesis" in window)) {
-        if (onEndCallback) setTimeout(onEndCallback, 4500);
-        return;
-      }
-
-      window.speechSynthesis.cancel();
-      const utter = new SpeechSynthesisUtterance(text);
-      utter.lang = "vi-VN";
-      utter.rate = tvBroadcastState.speechRate;
-      utter.pitch = 1.05;
-
-      const viVoice = getBestVietnameseVoice();
-      if (viVoice) {
-        utter.voice = viVoice;
-      }
-
-      utter.onend = () => {
-        if (onEndCallback) onEndCallback();
-      };
-
-      utter.onerror = (e) => {
-        if (onEndCallback) setTimeout(onEndCallback, 2000);
-      };
-
-      tvBroadcastState.currentUtterance = utter;
-      window.speechSynthesis.speak(utter);
-    }
-
-    // Dừng tất cả âm thanh đang phát
-    function stopAnyActiveSpeech() {
-      if (tvBroadcastState.activeAudio) {
-        try {
-          tvBroadcastState.activeAudio.pause();
-          tvBroadcastState.activeAudio.currentTime = 0;
-        } catch (e) {}
-        tvBroadcastState.activeAudio = null;
-      }
-      if (window.speechSynthesis) {
-        try { window.speechSynthesis.cancel(); } catch (e) {}
-      }
-      tvBroadcastState.currentUtterance = null;
+      // Ưu tiên giọng tiếng Việt chuẩn (vi-VN, Google Tiếng Việt, Microsoft HoaiMy, Nam/Nữ)
+      const viVoice = voices.find((v) => v.lang === "vi-VN" || v.lang === "vi_VN" || v.lang.toLowerCase().startsWith("vi"));
+      return viVoice || voices[0] || null;
     }
 
     // Tự động tổng hợp kịch bản bản tin truyền hình thời tiết từ dữ liệu WEATHER_POINTS thực tế
@@ -4093,13 +3948,14 @@
     function startTvBroadcast() {
       stopAutoTour();
       clearCameraTimers();
-      stopAnyActiveSpeech();
+      if (window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
 
       playTvNewsChime();
 
       tvBroadcastState.isActive = true;
       tvBroadcastState.isPaused = false;
-      tvBroadcastState.isSpeakingSingle = false;
       tvBroadcastState.currentStep = 0;
       tvBroadcastState.segments = generateTvNewsSegments();
 
@@ -4115,6 +3971,7 @@
       if (eqEl) eqEl.classList.add("active");
       if (pauseBtn) pauseBtn.textContent = "⏸ Tạm dừng";
 
+      // Đợi tiếng Chime mở đầu vang lên 0.4s rồi bắt đầu đọc phân đoạn 1
       setTimeout(() => {
         playTvSegment(0);
       }, 450);
@@ -4123,8 +3980,10 @@
     function stopTvBroadcast() {
       tvBroadcastState.isActive = false;
       tvBroadcastState.isPaused = false;
-      tvBroadcastState.isSpeakingSingle = false;
-      stopAnyActiveSpeech();
+      if (window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+      tvBroadcastState.currentUtterance = null;
 
       const tickerEl = document.getElementById("tv-news-ticker");
       const btnTv = document.getElementById("btn-tv-broadcast");
@@ -4148,16 +4007,38 @@
       tvBroadcastState.currentStep = stepIdx;
       const seg = tvBroadcastState.segments[stepIdx];
 
+      // Kích hoạt camera bay đồng bộ
       if (typeof seg.action === "function") {
         seg.action();
       }
 
+      // Cập nhật phụ đề Teleprompter
       const subEl = document.getElementById("tv-subtitles-text");
       const counterEl = document.getElementById("tv-step-counter");
       if (subEl) subEl.textContent = seg.text;
       if (counterEl) counterEl.textContent = `${stepIdx + 1}/${tvBroadcastState.segments.length}`;
 
-      const onSegmentEnd = () => {
+      if (!("speechSynthesis" in window)) {
+        // Fallback tự động nhảy sau 7 giây nếu trình duyệt không hỗ trợ Web Speech
+        setTimeout(() => {
+          if (tvBroadcastState.isActive && !tvBroadcastState.isPaused) {
+            playTvSegment(stepIdx + 1);
+          }
+        }, 7000);
+        return;
+      }
+
+      window.speechSynthesis.cancel();
+
+      const utter = new SpeechSynthesisUtterance(seg.text);
+      utter.lang = "vi-VN";
+      utter.rate = tvBroadcastState.speechRate;
+      utter.pitch = 1.05;
+
+      const voice = getBestVietnameseVoice();
+      if (voice) utter.voice = voice;
+
+      utter.onend = () => {
         if (tvBroadcastState.isActive && !tvBroadcastState.isPaused) {
           setTimeout(() => {
             playTvSegment(stepIdx + 1);
@@ -4165,13 +4046,16 @@
         }
       };
 
-      // Quyết định phát qua Cloud TTS tiếng Việt (Mặc định chuẩn) hay Web Speech
-      const hasNativeVi = Boolean(getBestVietnameseVoice());
-      if (tvBroadcastState.voiceEngine === "cloud" || !hasNativeVi) {
-        speakWithCloudTts(seg.text, onSegmentEnd);
-      } else {
-        speakWithDeviceVoice(seg.text, onSegmentEnd);
-      }
+      utter.onerror = (e) => {
+        if (tvBroadcastState.isActive && !tvBroadcastState.isPaused) {
+          setTimeout(() => {
+            playTvSegment(stepIdx + 1);
+          }, 4500);
+        }
+      };
+
+      tvBroadcastState.currentUtterance = utter;
+      window.speechSynthesis.speak(utter);
     }
 
     // Đọc riêng bản tin chi tiết của một điểm cảnh báo cụ thể
@@ -4183,9 +4067,7 @@
       if (tvBroadcastState.isActive) {
         stopTvBroadcast();
       }
-      stopAnyActiveSpeech();
 
-      tvBroadcastState.isSpeakingSingle = true;
       playTvNewsChime();
       flyCameraHighToLow(pt.id, true);
 
@@ -4201,8 +4083,24 @@
       if (counterEl) counterEl.textContent = `Điểm #${pt.id}`;
       if (eqEl) eqEl.classList.add("active");
 
-      const onSingleEnd = () => {
-        tvBroadcastState.isSpeakingSingle = false;
+      if (!("speechSynthesis" in window)) {
+        setTimeout(() => {
+          if (tickerEl) tickerEl.classList.add("hidden");
+          if (eqEl) eqEl.classList.remove("active");
+        }, 8000);
+        return;
+      }
+
+      window.speechSynthesis.cancel();
+      const utter = new SpeechSynthesisUtterance(text);
+      utter.lang = "vi-VN";
+      utter.rate = tvBroadcastState.speechRate;
+      utter.pitch = 1.05;
+
+      const voice = getBestVietnameseVoice();
+      if (voice) utter.voice = voice;
+
+      utter.onend = () => {
         if (eqEl) eqEl.classList.remove("active");
         setTimeout(() => {
           if (!tvBroadcastState.isActive && tickerEl) {
@@ -4211,25 +4109,7 @@
         }, 2500);
       };
 
-      const hasNativeVi = Boolean(getBestVietnameseVoice());
-      if (tvBroadcastState.voiceEngine === "cloud" || !hasNativeVi) {
-        speakWithCloudTts(text, onSingleEnd);
-      } else {
-        speakWithDeviceVoice(text, onSingleEnd);
-      }
-    }
-
-    function updateVoiceButtonDisplay() {
-      const btnVoice = document.getElementById("btn-tv-voice-mode");
-      if (!btnVoice) return;
-      const hasNativeVi = Boolean(getBestVietnameseVoice());
-      if (tvBroadcastState.voiceEngine === "cloud") {
-        btnVoice.innerHTML = "🎙️ Tiếng Việt: Cloud Chuẩn TV ▾";
-        btnVoice.title = "Đang dùng giọng đọc tiếng Việt Chuẩn Google Cloud (100% tiếng Việt tự nhiên trên mọi thiết bị). Bấm để đổi sang giọng máy.";
-      } else {
-        btnVoice.innerHTML = hasNativeVi ? "🎙️ Tiếng Việt: Thiết bị (vi-VN) ▾" : "🎙️ Tiếng Việt: Thiết bị (Không có vi-VN) ▾";
-        btnVoice.title = "Đang dùng giọng đọc của hệ điều hành máy tính/điện thoại. Bấm để đổi sang Cloud TV.";
-      }
+      window.speechSynthesis.speak(utter);
     }
 
     // Sự kiện điều khiển Bản tin Tivi
@@ -4246,7 +4126,7 @@
     });
 
     document.getElementById("btn-tv-pause-resume").addEventListener("click", () => {
-      if (!tvBroadcastState.isActive && !tvBroadcastState.isSpeakingSingle) return;
+      if (!tvBroadcastState.isActive) return;
       const btn = document.getElementById("btn-tv-pause-resume");
       const eqEl = document.getElementById("tv-equalizer");
 
@@ -4254,9 +4134,7 @@
         tvBroadcastState.isPaused = false;
         btn.textContent = "⏸ Tạm dừng";
         if (eqEl) eqEl.classList.add("active");
-        if (tvBroadcastState.activeAudio) {
-          tvBroadcastState.activeAudio.play();
-        } else if (window.speechSynthesis && window.speechSynthesis.paused) {
+        if (window.speechSynthesis && window.speechSynthesis.paused) {
           window.speechSynthesis.resume();
         } else {
           playTvSegment(tvBroadcastState.currentStep);
@@ -4265,9 +4143,6 @@
         tvBroadcastState.isPaused = true;
         btn.textContent = "▶ Tiếp tục";
         if (eqEl) eqEl.classList.remove("active");
-        if (tvBroadcastState.activeAudio) {
-          tvBroadcastState.activeAudio.pause();
-        }
         if (window.speechSynthesis) {
           window.speechSynthesis.pause();
         }
@@ -4292,29 +4167,7 @@
       const nextRate = speeds[(curIdx + 1) % speeds.length];
       tvBroadcastState.speechRate = nextRate;
       e.target.textContent = `${nextRate.toFixed(nextRate === 1.0 ? 1 : 2)}x`;
-      if (tvBroadcastState.activeAudio) {
-        tvBroadcastState.activeAudio.playbackRate = nextRate;
-      }
       showLiveSyncToast(`⚡ Tốc độ giọng đọc TV: ${nextRate}x`);
-      if (tvBroadcastState.isActive && !tvBroadcastState.isPaused) {
-        playTvSegment(tvBroadcastState.currentStep);
-      }
-    });
-
-    document.getElementById("btn-tv-voice-mode").addEventListener("click", () => {
-      const hasNativeVi = Boolean(getBestVietnameseVoice());
-      if (tvBroadcastState.voiceEngine === "cloud") {
-        if (!hasNativeVi) {
-          showLiveSyncToast("⚠️ Trình duyệt/Windows chưa có gói tiếng Việt vi-VN. Đang duy trì giọng Cloud Chuẩn TV để phát âm chuẩn 100%!");
-          return;
-        }
-        tvBroadcastState.voiceEngine = "device";
-        showLiveSyncToast("🎙️ Đã chuyển sang giọng đọc tiếng Việt của thiết bị (vi-VN)");
-      } else {
-        tvBroadcastState.voiceEngine = "cloud";
-        showLiveSyncToast("🎙️ Đã chuyển sang giọng đọc tiếng Việt Chuẩn Google Cloud (Tự nhiên nhất)");
-      }
-      updateVoiceButtonDisplay();
       if (tvBroadcastState.isActive && !tvBroadcastState.isPaused) {
         playTvSegment(tvBroadcastState.currentStep);
       }
@@ -4340,8 +4193,6 @@
       }
     });
 
-    // =========================================================================
-    // KHỞI CHẠY BAN ĐẦU
     // =========================================================================
     // KHỞI CHẠY BAN ĐẦU
     // =========================================================================
