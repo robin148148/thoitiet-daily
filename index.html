@@ -1,0 +1,4237 @@
+<!DOCTYPE html>
+<html lang="vi" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Bản Đồ Trực Quan Cảnh Báo Thời Tiết Cực Đoan Việt Nam - Google Maps GIS</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: #06101e;
+      color: #f1f5f9;
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      height: 100dvh;
+      overflow: hidden !important;
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      user-select: none;
+    }
+    .font-mono-code {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .hidden { display: none !important; }
+
+    /* Hide scrollbar for horizontal pill bars on mobile */
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+    /* Complete self-contained UI styling so buttons & layout look polished even if Tailwind CDN is slow/blocked */
+    header {
+      flex: 0 0 auto;
+      background: rgba(11, 19, 35, 0.98);
+      border-bottom: 1px solid #1e293b;
+      padding: 6px 10px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+      z-index: 30;
+    }
+    .header-brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+    .brand-icon {
+      position: relative;
+      width: 34px;
+      height: 34px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #ef4444, #f97316, #f59e0b);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      flex-shrink: 0;
+      box-shadow: 0 4px 12px rgba(249, 115, 22, 0.35);
+    }
+    .brand-title {
+      font-size: 13px;
+      font-weight: 800;
+      color: #ffffff;
+      margin: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    @media (min-width: 640px) {
+      .brand-title { font-size: 15px; }
+    }
+    .brand-sub {
+      font-size: 10.5px;
+      color: #94a3b8;
+      margin: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .top-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      overflow-x: auto;
+      max-width: 100%;
+      padding-bottom: 1px;
+    }
+    button, a.action-link {
+      font-family: inherit;
+      cursor: pointer;
+      border: 1px solid rgba(71, 85, 105, 0.7);
+      background: #1e293b;
+      color: #e2e8f0;
+      border-radius: 8px;
+      padding: 5px 9px;
+      font-size: 11px;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      white-space: nowrap;
+      text-decoration: none;
+      transition: all 0.18s ease;
+    }
+    button:active { transform: scale(0.96); }
+    #btn-auto-tour {
+      background: linear-gradient(90deg, #0ea5e9, #2563eb);
+      color: #ffffff;
+      border-color: #38bdf8;
+      font-weight: 700;
+      box-shadow: 0 3px 10px rgba(14, 165, 233, 0.3);
+    }
+    #btn-auto-tour.tour-active {
+      background: linear-gradient(90deg, #f43f5e, #dc2626);
+      border-color: #fb7185;
+    }
+    #btn-toggle-sheet {
+      background: rgba(16, 185, 129, 0.2);
+      color: #6ee7b7;
+      border-color: rgba(16, 185, 129, 0.45);
+    }
+    a.action-link {
+      background: rgba(245, 158, 11, 0.18);
+      color: #fcd34d;
+      border-color: rgba(245, 158, 11, 0.45);
+    }
+
+    #filter-ribbon {
+      flex: 0 0 auto;
+      background: rgba(15, 23, 42, 0.95);
+      border-bottom: 1px solid #1e293b;
+      padding: 5px 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      z-index: 25;
+      overflow-x: auto;
+      font-size: 11px;
+    }
+    .filter-group {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      flex-shrink: 0;
+    }
+    .region-btn, .hazard-btn {
+      padding: 3.5px 8px;
+      border-radius: 6px;
+      font-size: 10.5px;
+      font-weight: 600;
+      background: rgba(30, 41, 59, 0.9);
+      color: #cbd5e1;
+      border: 1px solid rgba(51, 65, 85, 0.8);
+    }
+    .region-btn.active-filter, .hazard-btn.active-filter {
+      background: #0284c7;
+      color: #ffffff;
+      border-color: #38bdf8;
+      font-weight: 700;
+    }
+
+    /* Main Workspace Layout - Explicit CSS so Map NEVER collapses or scrolls out of view */
+    #workspace-container {
+      flex: 1 1 auto;
+      min-height: 0;
+      height: 100%;
+      width: 100%;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden !important;
+    }
+    @media (min-width: 1024px) {
+      #workspace-container {
+        flex-direction: row;
+      }
+    }
+
+    /* Map Stage - Guaranteed full space on both Mobile and Desktop */
+    #map-stage {
+      flex: 1 1 auto;
+      min-height: 260px;
+      width: 100%;
+      height: 100%;
+      perspective: 1400px;
+      overflow: hidden !important;
+      position: relative;
+      background: #125488;
+      order: 1;
+    }
+    @media (min-width: 1024px) {
+      #map-stage {
+        order: 2;
+      }
+    }
+
+    /* Master Base Map Canvas - Synchronized 60fps Geographic Renderer */
+    #gis-base-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 5;
+      pointer-events: none;
+      display: block;
+    }
+
+    #map {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      width: 100% !important;
+      height: 100% !important;
+      z-index: 10;
+      background: transparent !important;
+      transition: transform 1.05s cubic-bezier(0.22, 1, 0.36, 1);
+      transform-origin: center center;
+    }
+    .leaflet-container {
+      background: transparent !important;
+      font-family: 'Inter', sans-serif !important;
+    }
+    #map.camera-high-altitude {
+      transform: scale(0.99) rotateX(0deg);
+    }
+    #map.camera-diving {
+      transform: scale(1.025) rotateX(4deg);
+    }
+    #map.camera-low-locked {
+      transform: scale(1.0) rotateX(0deg);
+    }
+
+    /* Wind Particles Canvas Overlay */
+    #wind-canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 15;
+      pointer-events: none;
+      opacity: 0.7;
+    }
+
+    /* Sidebar / Mobile Bottom Drawer - Strictly overflow:hidden so it NEVER pushes map off screen */
+    #sidebar-drawer {
+      order: 2;
+      flex: 0 0 auto;
+      z-index: 450;
+      background: rgba(10, 18, 34, 0.98);
+      backdrop-filter: blur(16px);
+      border-top: 1px solid rgba(56, 189, 248, 0.45);
+      transition: height 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      height: 46px;
+      overflow: hidden !important;
+    }
+    #sidebar-drawer.mobile-expanded {
+      height: 52dvh;
+    }
+    @media (min-width: 1024px) {
+      #sidebar-drawer {
+        order: 1;
+        width: 380px;
+        height: 100% !important;
+        border-top: none;
+        border-right: 1px solid rgba(51, 65, 85, 0.85);
+      }
+    }
+
+    #drawer-header-bar {
+      height: 46px;
+      padding: 6px 10px;
+      border-bottom: 1px solid #1e293b;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      flex-shrink: 0;
+      cursor: pointer;
+    }
+    #search-input {
+      background: #091326;
+      border: 1px solid #334155;
+      color: #f8fafc;
+      border-radius: 7px;
+      padding: 4px 8px;
+      font-size: 11px;
+      width: 135px;
+    }
+    #locations-list {
+      flex: 1 1 auto;
+      overflow-y: auto;
+      padding: 8px;
+    }
+    .location-card {
+      background: rgba(15, 23, 42, 0.92);
+      border: 1px solid #1e293b;
+      border-radius: 10px;
+      padding: 8px 10px;
+      margin-bottom: 7px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+    }
+    .location-card:hover {
+      border-color: #475569;
+      background: rgba(30, 41, 59, 0.92);
+    }
+    .location-card.active-card {
+      border: 1.5px solid #38bdf8;
+      background: rgba(14, 30, 56, 0.98);
+      box-shadow: 0 0 12px rgba(56, 189, 248, 0.25);
+    }
+
+    /* Floating Map HUD Overlays */
+    #hud-top-left {
+      position: absolute;
+      top: 8px;
+      left: 8px;
+      z-index: 400;
+      pointer-events: none;
+      background: rgba(6, 14, 28, 0.90);
+      border: 1px solid rgba(56, 189, 248, 0.45);
+      border-radius: 10px;
+      padding: 5px 10px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.6);
+    }
+    #hud-top-right {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      z-index: 400;
+      background: rgba(6, 14, 28, 0.90);
+      border: 1px solid rgba(71, 85, 105, 0.7);
+      border-radius: 10px;
+      padding: 3px;
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.6);
+    }
+    .tile-btn {
+      padding: 4px 7px;
+      border-radius: 7px;
+      font-size: 10px;
+      font-weight: 600;
+      border: none;
+      background: transparent;
+      color: #cbd5e1;
+    }
+    .tile-btn.active-tile {
+      background: #0284c7;
+      color: #ffffff;
+      font-weight: 700;
+    }
+
+    #hud-bottom-bar {
+      position: absolute;
+      bottom: 8px;
+      left: 8px;
+      right: 8px;
+      z-index: 400;
+      background: rgba(6, 14, 28, 0.92);
+      border: 1px solid rgba(71, 85, 105, 0.75);
+      border-radius: 10px;
+      padding: 6px 9px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.7);
+    }
+    @media (min-width: 768px) {
+      #hud-bottom-bar {
+        right: auto;
+        max-width: 460px;
+        display: block;
+      }
+    }
+
+    #telemetry-panel {
+      display: none;
+      position: absolute;
+      bottom: 8px;
+      right: 8px;
+      z-index: 400;
+      width: 310px;
+      background: rgba(6, 14, 28, 0.94);
+      border: 1px solid rgba(56, 189, 248, 0.45);
+      border-radius: 12px;
+      padding: 10px 12px;
+      box-shadow: 0 12px 28px rgba(0,0,0,0.8);
+    }
+    @media (min-width: 768px) {
+      #telemetry-panel { display: block; }
+    }
+
+    /* Custom Radar Pulse Markers */
+    .hazard-marker-wrap {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+    .hazard-pulse-ring {
+      position: absolute;
+      border-radius: 9999px;
+      animation: radarPulse 2.1s infinite cubic-bezier(0.16, 1, 0.3, 1);
+      pointer-events: none;
+    }
+    .hazard-pulse-ring-2 {
+      position: absolute;
+      border-radius: 9999px;
+      animation: radarPulse 2.1s infinite 0.85s cubic-bezier(0.16, 1, 0.3, 1);
+      pointer-events: none;
+    }
+    .hazard-core {
+      position: relative;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 9999px;
+      border: 2px solid #ffffff;
+      box-shadow: 0 0 12px rgba(0, 0, 0, 0.95), 0 0 8px currentColor;
+      font-size: 13px;
+      font-weight: 800;
+      transition: transform 0.2s ease;
+    }
+    .hazard-marker-wrap:hover .hazard-core {
+      transform: scale(1.2);
+    }
+    .hazard-label-tag {
+      position: absolute;
+      top: 29px;
+      left: 50%;
+      transform: translateX(-50%);
+      white-space: nowrap;
+      background: rgba(6, 14, 28, 0.92);
+      border: 1px solid rgba(56, 189, 248, 0.6);
+      color: #ffffff;
+      font-size: 9.5px;
+      font-weight: 700;
+      padding: 1px 5px;
+      border-radius: 4px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.85);
+      pointer-events: none;
+    }
+
+    @keyframes radarPulse {
+      0% { transform: scale(0.75); opacity: 0.95; }
+      100% { transform: scale(2.6); opacity: 0; }
+    }
+
+    /* Leaflet & Custom Dark Professional Popup - Responsive for Mobile & Desktop */
+    .leaflet-popup-content-wrapper {
+      background: linear-gradient(155deg, rgba(8, 17, 34, 0.98) 0%, rgba(15, 27, 50, 0.98) 100%) !important;
+      color: #f8fafc !important;
+      border: 1.5px solid rgba(56, 189, 248, 0.75) !important;
+      border-radius: 13px !important;
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.92), 0 0 20px rgba(14, 165, 233, 0.4) !important;
+      padding: 0 !important;
+      overflow: hidden;
+    }
+    .leaflet-popup-content {
+      margin: 0 !important;
+      width: min(290px, calc(100vw - 32px)) !important;
+      line-height: 1.38 !important;
+    }
+    @media (min-width: 640px) {
+      .leaflet-popup-content {
+        width: 335px !important;
+      }
+    }
+    .leaflet-popup-tip {
+      background: rgba(15, 23, 42, 0.98) !important;
+      border: 1px solid rgba(56, 189, 248, 0.5) !important;
+    }
+    .leaflet-container a.leaflet-popup-close-button,
+    a.custom-popup-close {
+      color: #e2e8f0 !important;
+      font-size: 16px !important;
+      font-weight: 800;
+      position: absolute;
+      top: 7px !important;
+      right: 8px !important;
+      width: 24px !important;
+      height: 24px !important;
+      border-radius: 9999px;
+      background: rgba(30, 41, 59, 0.9);
+      border: 1px solid rgba(148, 163, 184, 0.4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 30;
+      text-decoration: none;
+    }
+
+    .weather-popup-card {
+      padding: 10px 12px;
+      color: #f1f5f9;
+      animation: popupPopIn 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    @keyframes popupPopIn {
+      0% { opacity: 0; transform: translateY(6px) scale(0.96); }
+      100% { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    /* HUD Target Crosshair overlay during Fly-To */
+    #hud-crosshair {
+      position: absolute;
+      inset: 0;
+      z-index: 390;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      transition: opacity 0.28s ease;
+    }
+    #hud-crosshair.opacity-0 { opacity: 0 !important; }
+    .crosshair-ring {
+      animation: spinSlow 9s linear infinite;
+    }
+    @keyframes spinSlow {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    /* Sheet Modal */
+    #sheet-modal {
+      position: absolute;
+      inset: 0;
+      z-index: 500;
+      background: rgba(6, 13, 26, 0.98);
+      display: flex;
+      flex-direction: column;
+      padding: 12px;
+      overflow: hidden;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11.5px;
+    }
+    th, td {
+      padding: 8px 10px;
+      border-bottom: 1px solid #1e293b;
+      text-align: left;
+      vertical-align: top;
+    }
+    th {
+      background: #0f172a;
+      color: #38bdf8;
+      font-weight: 700;
+      position: sticky;
+      top: 0;
+    }
+  
+    /* Live Google Sheet Sync Status & Controls */
+    #btn-live-sync {
+      background: rgba(14, 165, 233, 0.18);
+      color: #7dd3fc;
+      border-color: rgba(56, 189, 248, 0.55);
+    }
+    #btn-live-sync.syncing {
+      background: rgba(245, 158, 11, 0.25);
+      color: #fde047;
+      border-color: #f59e0b;
+    }
+    .live-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 9999px;
+      background: #10b981;
+      box-shadow: 0 0 8px #10b981;
+      display: inline-block;
+      animation: liveDotPulse 1.8s infinite ease-in-out;
+    }
+    .live-dot.syncing {
+      background: #f59e0b;
+      box-shadow: 0 0 8px #f59e0b;
+    }
+    @keyframes liveDotPulse {
+      0%, 100% { transform: scale(0.9); opacity: 0.75; }
+      50% { transform: scale(1.25); opacity: 1; }
+    }
+    #live-sync-toast {
+      position: absolute;
+      top: 52px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 460;
+      background: rgba(6, 18, 36, 0.96);
+      border: 1px solid #10b981;
+      color: #6ee7b7;
+      padding: 5px 12px;
+      border-radius: 9999px;
+      font-size: 11px;
+      font-weight: 700;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.75);
+      pointer-events: none;
+      transition: opacity 0.25s ease;
+      white-space: nowrap;
+      max-width: 92vw;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .sheet-sync-bar {
+      background: rgba(15, 23, 42, 0.92);
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      border-radius: 10px;
+      padding: 8px 10px;
+      margin-top: 8px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 11px;
+    }
+    .sheet-input {
+      background: #091326;
+      border: 1px solid #334155;
+      color: #f8fafc;
+      border-radius: 6px;
+      padding: 4px 8px;
+      font-size: 11px;
+    }
+    .editable-cell {
+      outline: none;
+      border-radius: 4px;
+      transition: background 0.15s ease;
+    }
+    .editable-cell:focus {
+      background: rgba(14, 165, 233, 0.18);
+      box-shadow: 0 0 0 1px #38bdf8;
+      padding: 2px 4px;
+    }
+
+
+    /* TV Weather Broadcast Studio & Lower-Third Ticker */
+    #btn-tv-broadcast {
+      background: linear-gradient(90deg, #dc2626, #ea580c);
+      color: #ffffff;
+      border-color: #f87171;
+      font-weight: 700;
+      box-shadow: 0 3px 10px rgba(220, 38, 38, 0.35);
+      position: relative;
+      overflow: hidden;
+    }
+    #btn-tv-broadcast:hover {
+      border-color: #fca5a5;
+      transform: translateY(-1px);
+    }
+    #btn-tv-broadcast.broadcasting {
+      background: linear-gradient(90deg, #059669, #10b981);
+      border-color: #34d399;
+      animation: broadcastGlow 2.2s infinite ease-in-out;
+    }
+    @keyframes broadcastGlow {
+      0%, 100% { box-shadow: 0 0 8px rgba(16, 185, 129, 0.4); }
+      50% { box-shadow: 0 0 16px rgba(16, 185, 129, 0.8); }
+    }
+
+    #tv-news-ticker {
+      position: absolute;
+      bottom: 58px;
+      left: 10px;
+      right: 10px;
+      z-index: 440;
+      background: linear-gradient(180deg, rgba(15, 23, 42, 0.98) 0%, rgba(6, 14, 28, 0.98) 100%);
+      border: 1.5px solid #ef4444;
+      border-radius: 12px;
+      box-shadow: 0 14px 34px rgba(0, 0, 0, 0.88), 0 0 20px rgba(239, 68, 68, 0.35);
+      padding: 8px 12px;
+      backdrop-filter: blur(12px);
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    @media (min-width: 768px) {
+      #tv-news-ticker {
+        left: 20px;
+        right: auto;
+        width: 620px;
+        bottom: 54px;
+      }
+    }
+    .tv-ticker-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding-bottom: 5px;
+      border-bottom: 1px solid rgba(239, 68, 68, 0.35);
+      flex-wrap: wrap;
+    }
+    .tv-live-tag {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      font-weight: 800;
+      color: #fecaca;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .tv-rec-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 9999px;
+      background: #ef4444;
+      box-shadow: 0 0 10px #ef4444;
+      animation: recBlink 1.2s infinite ease-in-out;
+    }
+    @keyframes recBlink {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.3; transform: scale(0.85); }
+    }
+    .tv-eq-anim {
+      display: flex;
+      align-items: flex-end;
+      gap: 2px;
+      height: 12px;
+      margin-left: 4px;
+    }
+    .eq-bar {
+      width: 2.5px;
+      background: #38bdf8;
+      border-radius: 1px;
+      height: 3px;
+      transition: height 0.15s ease;
+    }
+    .tv-eq-anim.active .eq-bar.b1 { animation: eqJump 0.6s infinite ease-in-out 0.1s; }
+    .tv-eq-anim.active .eq-bar.b2 { animation: eqJump 0.7s infinite ease-in-out 0.25s; }
+    .tv-eq-anim.active .eq-bar.b3 { animation: eqJump 0.5s infinite ease-in-out 0.05s; }
+    .tv-eq-anim.active .eq-bar.b4 { animation: eqJump 0.8s infinite ease-in-out 0.35s; }
+    @keyframes eqJump {
+      0%, 100% { height: 3px; }
+      50% { height: 12px; }
+    }
+
+    .tv-ticker-actions {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .tv-ticker-actions button {
+      padding: 3px 7px;
+      font-size: 10px;
+      font-weight: 700;
+      border-radius: 6px;
+      background: #1e293b;
+      color: #f8fafc;
+      border-color: #475569;
+    }
+    .tv-ticker-actions button:hover {
+      background: #334155;
+    }
+    #btn-tv-stop {
+      background: rgba(239, 68, 68, 0.25);
+      color: #fca5a5;
+      border-color: #ef4444;
+    }
+
+    .tv-ticker-body {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .tv-subtitles-content {
+      font-size: 12px;
+      line-height: 1.45;
+      color: #f8fafc;
+      font-weight: 500;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+      max-height: 60px;
+      overflow-y: auto;
+      flex: 1 1 auto;
+    }
+    .tv-step-badge {
+      font-size: 10px;
+      color: #38bdf8;
+      background: rgba(14, 165, 233, 0.18);
+      border: 1px solid rgba(56, 189, 248, 0.45);
+      border-radius: 5px;
+      padding: 2px 6px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+  </style>
+</head>
+<body>
+
+  <!-- TOP COMMAND HEADER -->
+  <header>
+    <div class="header-brand">
+      <div class="brand-icon">⛈️</div>
+      <div style="min-width:0;">
+        <h1 class="brand-title">HỆ THỐNG BẢN ĐỒ CẢNH BÁO THỜI TIẾT CỰC ĐOAN VIỆT NAM</h1>
+        <p class="brand-sub">Tự động cập nhật Sheet 06:00 sáng HN &amp; Làm tươi ngầm (Không cần tải lại bản đồ)</p>
+      </div>
+    </div>
+
+    <div class="top-actions no-scrollbar">
+      <button id="btn-tv-broadcast" type="button" title="Phát thanh bản tin thời tiết giọng đọc Tivi VTV thời sự">
+        <span id="tv-broadcast-icon">🎙️</span>
+        <span id="tv-broadcast-label">Bản Tin Tivi (Phát thanh viên VTV)</span>
+      </button>
+
+      <button id="btn-auto-tour" type="button">
+        <span id="auto-tour-icon">▶</span>
+        <span id="auto-tour-label">Trình chiếu Zoom Tự động (14 Điểm)</span>
+      </button>
+
+      <button id="btn-overview-vn" type="button">
+        <span>🛰️</span>
+        <span>Toàn cảnh VN (Từ cao)</span>
+      </button>
+
+      <button id="btn-live-sync" type="button" title="Làm tươi dữ liệu trực tiếp từ Google Sheet ngay lập tức">
+        <span id="live-sync-dot" class="live-dot"></span>
+        <span id="live-sync-label">Làm tươi Sheet (Tự động 30s)</span>
+      </button>
+
+      <button id="btn-toggle-sheet" type="button">
+        <span>📊</span>
+        <span id="sheet-btn-text">Bảng Dữ Liệu Google Sheet</span>
+      </button>
+
+      <a href="https://docs.google.com/spreadsheets/d/1a9fX-0zRJlvxTcGB1UlGEHETLiJ5qzbm_Qn3_RUEBJQ/edit" target="_blank" rel="noopener noreferrer" class="action-link">
+        <span>↗</span>
+        <span>Mở Google Sheet</span>
+      </a>
+    </div>
+  </header>
+
+  <!-- HORIZONTAL TOUCH-SCROLLABLE FILTER BAR -->
+  <div id="filter-ribbon" class="no-scrollbar">
+    <div class="filter-group" id="region-filter-group">
+      <button type="button" data-region="ALL" class="region-btn active-filter">Tất cả (14)</button>
+      <button type="button" data-region="BAC_BO" class="region-btn">Bắc Bộ (3)</button>
+      <button type="button" data-region="MIEN_TRUNG" class="region-btn">Miền Trung (4)</button>
+      <button type="button" data-region="TAY_NGUYEN" class="region-btn">Tây Nguyên (2)</button>
+      <button type="button" data-region="NAM_BO" class="region-btn">Nam Bộ (3)</button>
+      <button type="button" data-region="BIEN_DONG" class="region-btn">Biển Đông &amp; ATNĐ/Bão (2)</button>
+    </div>
+
+    <div class="filter-group" id="hazard-filter-group">
+      <button type="button" data-hazard="ALL" class="hazard-btn active-filter">Mọi loại hình</button>
+      <button type="button" data-hazard="FLASH_FLOOD" class="hazard-btn">🚨 Lũ quét &amp; Sạt lở</button>
+      <button type="button" data-hazard="HEAVY_RAIN" class="hazard-btn">⛈️ Mưa to &gt;70-80mm</button>
+      <button type="button" data-hazard="HEAT_PEAK" class="hazard-btn">☀️ Nóng nhất 34°C</button>
+      <button type="button" data-hazard="MARINE_STORM" class="hazard-btn">🌀 Lốc biển &amp; Bão/ATNĐ</button>
+    </div>
+  </div>
+
+  <!-- MAIN WORKSPACE -->
+  <div id="workspace-container">
+
+    <!-- LEFT SIDEBAR (DESKTOP) / COLLAPSIBLE BOTTOM DRAWER (MOBILE) -->
+    <aside id="sidebar-drawer">
+      <div id="drawer-header-bar">
+        <div style="display:flex;align-items:center;gap:8px;min-width:0;">
+          <button id="btn-mobile-drawer-toggle" type="button" style="background:rgba(14,165,233,0.2);border-color:#38bdf8;color:#7dd3fc;">
+            <span id="drawer-chevron">🔼</span>
+            <span>Danh sách (<span id="point-count-badge">14</span> điểm)</span>
+          </button>
+          <span style="font-size:11px;color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Chạm chọn điểm Zoom</span>
+        </div>
+
+        <div id="search-box-wrap">
+          <input id="search-input" type="text" placeholder="Tìm tỉnh, địa danh..." />
+        </div>
+      </div>
+
+      <!-- Location Cards List -->
+      <div id="locations-list"></div>
+    </aside>
+
+    <!-- CENTER STAGE: SYNCHRONIZED GOOGLE MAPS CANVAS + INTERACTIVE VIEWPORT -->
+    <main id="map-stage">
+      <!-- Dedicated 60fps Full-Color Geographic Base Map Canvas -->
+      <canvas id="gis-base-canvas"></canvas>
+      <!-- Interactive Map Container -->
+      <div id="map"></div>
+      <!-- Animated Wind Streamlines -->
+      <canvas id="wind-canvas"></canvas>
+
+      <!-- FLOATING LIVE SYNC TOAST -->
+      <div id="live-sync-toast" class="hidden">🟢 Đã đồng bộ dữ liệu mới nhất từ Google Sheet</div>
+
+      <!-- TV STUDIO NEWS WEATHER TICKER & LOWER-THIRD TELEPROMPTER -->
+      <div id="tv-news-ticker" class="hidden">
+        <div class="tv-ticker-header">
+          <div class="tv-live-tag">
+            <span class="tv-rec-dot"></span>
+            <span>THỜI SỰ VTV • BẢN TIN THỜI TIẾT CỰC ĐOAN</span>
+            <div class="tv-eq-anim" id="tv-equalizer">
+              <span class="eq-bar b1"></span>
+              <span class="eq-bar b2"></span>
+              <span class="eq-bar b3"></span>
+              <span class="eq-bar b4"></span>
+            </div>
+          </div>
+          <div class="tv-ticker-actions">
+            <button id="btn-tv-prev-step" type="button" title="Đoạn trước">⏮ Trước</button>
+            <button id="btn-tv-pause-resume" type="button" title="Tạm dừng / Tiếp tục">⏸ Tạm dừng</button>
+            <button id="btn-tv-next-step" type="button" title="Đoạn kế">⏭ Kế tiếp</button>
+            <button id="btn-tv-speed" type="button" title="Tốc độ đọc">1.0x</button>
+            <button id="btn-tv-stop" type="button" title="Tắt bản tin truyền hình">⏹ Dừng phát</button>
+          </div>
+        </div>
+        <div class="tv-ticker-body">
+          <div id="tv-subtitles-text" class="tv-subtitles-content">
+            Đang chuẩn bị bản tin thời tiết truyền hình...
+          </div>
+          <div id="tv-step-counter" class="font-mono-code tv-step-badge">1/7</div>
+        </div>
+      </div>
+
+      <!-- FLOATING TOP-LEFT CAMERA ALTITUDE & ANIMATION STATUS BAR -->
+      <div id="hud-top-left">
+        <div>
+          <div style="font-size:9px;text-transform:uppercase;color:#94a3b8;font-weight:700;">Độ cao Camera</div>
+          <div style="display:flex;align-items:baseline;gap:4px;">
+            <span id="hud-altitude" class="font-mono-code" style="font-size:13px;font-weight:800;color:#38bdf8;">1.650 km</span>
+            <span id="hud-zoom-level" class="font-mono-code" style="font-size:10px;color:#94a3b8;">(Zoom 5.5)</span>
+          </div>
+        </div>
+        <div style="border-left:1px solid #334155;padding-left:8px;">
+          <div style="font-size:9px;text-transform:uppercase;color:#94a3b8;font-weight:700;">Trạng thái</div>
+          <div id="hud-camera-state" style="font-size:11px;font-weight:700;color:#34d399;white-space:nowrap;">
+            Toàn cảnh Việt Nam
+          </div>
+        </div>
+      </div>
+
+      <!-- FLOATING TOP-RIGHT GOOGLE MAPS LAYER SWITCHER -->
+      <div id="hud-top-right">
+        <button type="button" data-tile="hybrid" class="tile-btn active-tile">Vệ tinh + Địa danh</button>
+        <button type="button" data-tile="roadmap" class="tile-btn">Hành chính Google</button>
+        <button type="button" data-tile="terrain" class="tile-btn">Địa hình Đồi núi</button>
+      </div>
+
+      <!-- TARGET LOCK CROSSHAIR DURING FLY-TO ANIMATION -->
+      <div id="hud-crosshair" class="opacity-0">
+        <div style="position:relative;width:150px;height:150px;display:flex;align-items:center;justify-content:center;">
+          <div class="crosshair-ring" style="position:absolute;inset:0;border-radius:9999px;border:2px dashed rgba(56,189,248,0.75);"></div>
+          <div style="position:absolute;inset:20px;border-radius:9999px;border:1.5px solid rgba(239,68,68,0.75);"></div>
+          <div style="width:10px;height:10px;border-radius:9999px;background:#ef4444;box-shadow:0 0 12px #ef4444;"></div>
+          <div id="crosshair-label" class="font-mono-code" style="position:absolute;bottom:-28px;background:rgba(6,14,28,0.95);border:1px solid #38bdf8;color:#7dd3fc;font-size:10px;padding:2px 8px;border-radius:6px;white-space:nowrap;">
+            ĐANG HẠ ĐỘ CAO CAMERA...
+          </div>
+        </div>
+      </div>
+
+      <!-- BOTTOM-LEFT LEGEND & QUICK STEPPER -->
+      <div id="hud-bottom-bar">
+        <div style="display:flex;align-items:center;gap:6px;overflow-x:auto;" class="no-scrollbar">
+          <span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;color:#fecaca;background:rgba(127,29,29,0.6);border:1px solid rgba(239,68,68,0.5);padding:2px 6px;border-radius:5px;white-space:nowrap;">
+            <span style="width:7px;height:7px;border-radius:99px;background:#ef4444;"></span>Lũ quét / Sạt lở
+          </span>
+          <span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;color:#fed7aa;background:rgba(124,45,18,0.6);border:1px solid rgba(249,115,22,0.5);padding:2px 6px;border-radius:5px;white-space:nowrap;">
+            <span style="width:7px;height:7px;border-radius:99px;background:#f97316;"></span>Mưa to &gt;70-80mm
+          </span>
+          <span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;color:#fef08a;background:rgba(113,63,18,0.6);border:1px solid rgba(234,179,8,0.5);padding:2px 6px;border-radius:5px;white-space:nowrap;">
+            <span style="width:7px;height:7px;border-radius:99px;background:#eab308;"></span>Nắng nóng 34°C
+          </span>
+          <span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;color:#a5f3fc;background:rgba(22,78,99,0.6);border:1px solid rgba(6,182,212,0.5);padding:2px 6px;border-radius:5px;white-space:nowrap;">
+            <span style="width:7px;height:7px;border-radius:99px;background:#06b6d4;"></span>Lốc biển / ATNĐ
+          </span>
+          <label style="display:none;align-items:center;gap:4px;font-size:10px;color:#7dd3fc;">
+            <input id="chk-high-to-low" type="checkbox" checked />Zoom 2 tầng
+          </label>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:4px;flex-shrink:0;">
+          <button id="btn-prev-point-mobile" type="button" style="padding:4px 8px;">◀</button>
+          <button id="btn-next-point-mobile" type="button" style="padding:4px 9px;background:#0284c7;color:#fff;border-color:#38bdf8;">Điểm kế ▶</button>
+        </div>
+      </div>
+
+      <!-- BOTTOM-RIGHT ACTIVE POINT TELEMETRY CARD (DESKTOP) -->
+      <div id="telemetry-panel">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:6px;">
+          <div>
+            <span id="tele-badge" style="display:inline-block;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:800;background:rgba(239,68,68,0.2);color:#fca5a5;border:1px solid rgba(239,68,68,0.5);">
+              CẢNH BÁO CẤP 1
+            </span>
+            <h3 id="tele-title" style="font-size:13px;font-weight:800;color:#fff;margin:4px 0 2px 0;">Chọn một điểm trên bản đồ</h3>
+            <p id="tele-gps" class="font-mono-code" style="font-size:10.5px;color:#38bdf8;margin:0;">GPS: --, -- • Giờ HN: 17/10/2026 19:00</p>
+          </div>
+          <div style="display:flex;gap:4px;">
+            <button id="btn-speak-active-point" type="button" style="padding:4px 7px;font-size:10.5px;background:rgba(239,68,68,0.2);color:#fca5a5;border-color:#ef4444;" title="Phát giọng đọc cho điểm đang chọn">
+              🎙️ Đọc điểm này
+            </button>
+            <button id="btn-replay-zoom" type="button" style="padding:4px 7px;font-size:10.5px;background:rgba(14,165,233,0.2);color:#7dd3fc;border-color:#38bdf8;">
+              🔄 Zoom lại
+            </button>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px;font-size:11px;">
+          <div style="background:#0f172a;border:1px solid #1e293b;border-radius:7px;padding:5px 7px;">
+            <div style="color:#94a3b8;font-size:9.5px;">Nhiệt độ hiện tại / Dự báo</div>
+            <div id="tele-temp" style="font-weight:700;color:#fcd34d;">--</div>
+          </div>
+          <div style="background:#0f172a;border:1px solid #1e293b;border-radius:7px;padding:5px 7px;">
+            <div style="color:#94a3b8;font-size:9.5px;">Lượng mưa / Gió giật</div>
+            <div id="tele-rain" style="font-weight:700;color:#67e8f9;">--</div>
+          </div>
+        </div>
+        <p id="tele-desc" style="font-size:11px;color:#cbd5e1;margin:0;line-height:1.4;">
+          Chạm vào một điểm cảnh báo bất kỳ hoặc bấm nút "Trình chiếu Zoom Tự động" để camera bay từ độ cao toàn cảnh xuống từng tọa độ.
+        </p>
+      </div>
+    </main>
+
+    <!-- OVERLAY DRAWER: STRUCTURED GOOGLE SHEET DATA TABLE VIEW -->
+    <section id="sheet-modal" class="hidden">
+      <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;padding-bottom:10px;border-bottom:1px solid #1e293b;">
+        <div>
+          <h2 style="font-size:15px;font-weight:800;color:#fff;margin:0;">
+            📊 BẢNG DỮ LIỆU CHUẨN CẤU TRÚC GOOGLE SHEET (14 ĐIỂM TỌA ĐỘ GPS)
+          </h2>
+          <p style="font-size:11px;color:#94a3b8;margin:2px 0 0 0;">
+            Ngày giờ (Giờ Hà Nội) • Khu vực địa danh • Tọa độ GPS đại diện • Thông tin hiện tại &amp; Dự báo thời tiết cực đoan
+          </p>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+          <button id="btn-export-csv" type="button" style="background:#059669;color:#fff;border-color:#10b981;">
+            ⬇️ Tải file CSV chuẩn Google Sheet
+          </button>
+          <button id="btn-copy-tsv" type="button" style="background:rgba(14,165,233,0.25);color:#bae6fd;border-color:#38bdf8;">
+            📋 Sao chép bảng (Dán vào Sheet)
+          </button>
+          <button id="btn-close-sheet" type="button" style="background:#dc2626;color:#fff;border-color:#ef4444;">
+            ✕ Đóng bảng (Về Bản đồ)
+          </button>
+        </div>
+      </div>
+
+      <!-- THANH ĐỒNG BỘ TRỰC TIẾP GOOGLE SHEET (LIVE SYNC BAR) -->
+      <div class="sheet-sync-bar">
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;flex:1 1 320px;">
+          <span style="font-weight:700;color:#38bdf8;white-space:nowrap;">🔗 Link / ID Google Sheet:</span>
+          <input id="input-sheet-url" type="text" class="sheet-input" style="flex:1 1 200px;min-width:160px;"
+                 value="https://docs.google.com/spreadsheets/d/1a9fX-0zRJlvxTcGB1UlGEHETLiJ5qzbm_Qn3_RUEBJQ/edit"
+                 placeholder="Dán link hoặc ID Google Sheet..." />
+          <select id="select-poll-interval" class="sheet-input" title="Chu kỳ tự động quét cập nhật từ Google Sheet">
+            <option value="5">Tự làm tươi: 5 giây</option>
+            <option value="10" selected>Tự làm tươi: 10 giây</option>
+            <option value="15">Tự làm tươi: 15 giây</option>
+            <option value="30">Tự làm tươi: 30 giây</option>
+            <option value="60">Tự làm tươi: 60 giây</option>
+            <option value="0">Tắt tự động quét</option>
+          </select>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+          <button id="btn-sync-sheet-now" type="button" style="background:#0284c7;color:#fff;border-color:#38bdf8;">
+            🔄 Đồng bộ ngay từ Sheet
+          </button>
+          <button id="btn-add-weather-row" type="button" style="background:rgba(16,185,129,0.22);color:#6ee7b7;border-color:#10b981;">
+            ➕ Thêm dòng cảnh báo
+          </button>
+          <button id="btn-toggle-paste-box" type="button" style="background:rgba(245,158,11,0.22);color:#fde047;border-color:#f59e0b;">
+            📥 Dán nhanh từ Sheet
+          </button>
+          <button id="btn-reset-default-data" type="button" style="background:rgba(100,116,139,0.25);color:#cbd5e1;border-color:#64748b;">
+            ↺ Khôi phục gốc (14 điểm)
+          </button>
+        </div>
+      </div>
+
+      <!-- TRẠNG THÁI ĐỒNG BỘ REAL-TIME -->
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-top:6px;font-size:10.5px;color:#94a3b8;">
+        <div>
+          <span class="live-dot" style="margin-right:4px;"></span>
+          <span id="sheet-sync-status-text">⏰ Đã kích hoạt lịch tự động cập nhật Google Sheet lúc 06:00 sáng hàng ngày (Giờ Hà Nội) &amp; liên kết làm tươi ngầm mỗi 10 giây — Bản đồ tự động cập nhật trực tiếp mà không cần tải lại trang!</span>
+        </div>
+        <span id="sheet-last-sync-time" class="font-mono-code" style="color:#34d399;font-weight:700;">Cập nhật: Vừa xong</span>
+      </div>
+
+      <!-- HỘP DÁN NHANH DỮ LIỆU TỪ GOOGLE SHEET (TSV / CSV) -->
+      <div id="paste-sync-panel" class="hidden" style="margin-top:8px;padding:8px 10px;border-radius:8px;background:rgba(15,23,42,0.96);border:1px solid #f59e0b;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;font-size:11px;">
+          <strong style="color:#fde047;">📥 Dán trực tiếp các dòng copy từ Google Sheet (Ctrl+C từ Sheet ➔ Ctrl+V vào ô dưới đây):</strong>
+          <div style="display:flex;gap:6px;">
+            <button id="btn-apply-pasted-data" type="button" style="background:#059669;color:#fff;border-color:#10b981;">✅ Áp dụng ngay lên Bản đồ</button>
+            <button id="btn-cancel-paste" type="button">Đóng</button>
+          </div>
+        </div>
+        <textarea id="textarea-paste-sheet" rows="4" class="sheet-input font-mono-code" style="width:100%;font-size:10.5px;"
+          placeholder="Ví dụ dán các cột từ Google Sheet: Ngày giờ (Giờ Hà Nội) | Khu vực địa danh | Tọa độ GPS (VD: 13.0882, 109.3135) | Thông tin dự báo và hiện tại tình hình thời tiết..."></textarea>
+      </div>
+
+      <div id="copy-toast" class="hidden" style="margin-top:8px;padding:6px 10px;border-radius:7px;background:rgba(16,185,129,0.2);border:1px solid #10b981;color:#6ee7b7;font-size:11.5px;font-weight:600;">
+        ✅ Đã sao chép toàn bộ dòng dữ liệu chuẩn cấu trúc Google Sheet vào bộ nhớ tạm!
+      </div>
+
+      <div style="flex:1 1 auto;overflow:auto;margin-top:10px;border-radius:10px;border:1px solid #1e293b;background:rgba(15,23,42,0.75);">
+        <table>
+          <thead>
+            <tr>
+              <th>STT</th>
+              <th>Ngày giờ (Giờ Hà Nội)</th>
+              <th>Khu vực / Địa danh</th>
+              <th>Tọa độ GPS (Lat, Lng)</th>
+              <th>Loại hình Cực đoan</th>
+              <th>Hiện tại &amp; Dự báo Nhiệt độ / Mưa / Gió</th>
+              <th>Thông tin Dự báo &amp; Cảnh báo Chi tiết</th>
+              <th>Thao tác</th>
+            </tr>
+          </thead>
+          <tbody id="sheet-table-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+  </div>
+
+  <script>
+    // =========================================================================
+    // DỮ LIỆU THỰC TẾ 14 ĐIỂM CẢNH BÁO THỜI TIẾT CỰC ĐOAN VIỆT NAM (17-18/10/2026)
+    // =========================================================================
+    const DEFAULT_WEATHER_POINTS = [
+      {
+        id: 1,
+        shortLabel: "1. Hà Nội (34°C)",
+        timestamp: "18/10/2026 06:00 (GMT+7)",
+        regionCode: "BAC_BO",
+        regionName: "Đồng bằng Bắc Bộ",
+        locationName: "Hoàn Kiếm, TP. Hà Nội",
+        lat: 21.0285,
+        lng: 105.8542,
+        targetZoom: 8.5,
+        radiusMeters: 38000,
+        hazardCode: "HEAT_PEAK",
+        hazardBadge: "NẮNG NÓNG HANH 33–34°C",
+        severityLevel: "Theo dõi nắng hanh (+1.5 đến +2.5°C TBNN)",
+        colorHex: "#eab308",
+        iconEmoji: "☀️",
+        currentTemp: "25°C (06h sáng)",
+        forecastTemp: "23°C – 34°C",
+        rainfallWind: "Mưa 0mm, sáng sớm sương mù nhẹ, gió nhẹ",
+        currentSummary: "Hiện tại sáng sớm 18/10 đạt 24–25°C, có mây, sương mù nhẹ rải rác.",
+        forecastDetail: "Dự báo trưa chiều 18/10 trời nắng hanh đạt đỉnh 32–34°C (cao nhất miền Bắc). Cảnh báo từ 21–22/10 đón đợt mưa rào và dông rải rác, cục bộ mưa to.",
+        sourceName: "NCHMF - Dự báo Ngày & Đêm 18/10",
+        sourceUrl: "https://nchmf.gov.vn/kttvsite/vi-VN/1/mua-lon-mua-lon-dien-rong-2053-15.html"
+      },
+      {
+        id: 2,
+        shortLabel: "2. Phú Thọ (34°C)",
+        timestamp: "18/10/2026 06:00 (GMT+7)",
+        regionCode: "BAC_BO",
+        regionName: "Đông Bắc Bộ & Trung Du",
+        locationName: "Việt Trì – Vĩnh Phúc, tỉnh Phú Thọ",
+        lat: 21.3227,
+        lng: 105.4019,
+        targetZoom: 8.5,
+        radiusMeters: 42000,
+        hazardCode: "HEAT_PEAK",
+        hazardBadge: "NẮNG HANH ĐỈNH NHIỆT 33–34°C",
+        severityLevel: "Theo dõi nắng hanh & mưa dông chuyển mùa (21-22/10)",
+        colorHex: "#f59e0b",
+        iconEmoji: "🌡️",
+        currentTemp: "24°C (06h sáng)",
+        forecastTemp: "23°C – 34°C (Vùng núi <22°C)",
+        rainfallWind: "Đêm mưa vài nơi (<5mm), gió nhẹ",
+        currentSummary: "Hiện tại 06h sáng 18/10 nhiệt độ 24°C, sáng sớm có sương mù nhẹ.",
+        forecastDetail: "Dự báo ngày 18/10 trời nắng hanh 31–34°C. Cảnh báo thời kỳ 21–22/10 khu vực Đông Bắc Bộ có mưa rào và dông rải rác, cục bộ có nơi mưa to kèm lốc sét.",
+        sourceName: "NCHMF - Quan trắc & Dự báo 18/10",
+        sourceUrl: "https://www.nchmf.gov.vn/"
+      },
+      {
+        id: 3,
+        shortLabel: "3. Điện Biên",
+        timestamp: "18/10/2026 06:00 (GMT+7)",
+        regionCode: "BAC_BO",
+        regionName: "Tây Bắc Bộ",
+        locationName: "Mường Thanh (Điện Biên) & Tô Hiệu (Sơn La)",
+        lat: 21.3860,
+        lng: 103.0230,
+        targetZoom: 8.3,
+        radiusMeters: 52000,
+        hazardCode: "HEAT_PEAK",
+        hazardBadge: "BIÊN ĐỘ NHIỆT LỚN 18–34°C & SƯƠNG MÙ",
+        severityLevel: "Theo dõi sương mù đèo dốc & biên độ nhiệt lớn",
+        colorHex: "#eab308",
+        iconEmoji: "🌤️",
+        currentTemp: "20°C (Vùng cao <18°C)",
+        forecastTemp: "18°C – 34°C",
+        rainfallWind: "Mưa vài nơi (<10mm), sương mù sáng sớm",
+        currentSummary: "Hiện tại 06h sáng 18/10 trời lạnh 19–21°C, vùng núi cao trời rét dưới 18°C kèm sương mù rải rác.",
+        forecastDetail: "Dự báo trưa chiều 18/10 nắng mạnh 31–34°C, chênh lệch nhiệt độ ngày đêm lên tới 14–15°C; lưu ý sương mù gây giảm tầm nhìn trên các đèo Tây Bắc.",
+        sourceName: "Bản tin Dự báo Thời tiết 18/10",
+        sourceUrl: "https://baodienbienphu.vn/tin-bai/xa-hoi/ban-tin-du-bao-thoi-tiet-ngay-18-10-2026"
+      },
+      {
+        id: 4,
+        shortLabel: "4. TP. Huế - Hà Tĩnh",
+        timestamp: "18/10/2026 06:00 (GMT+7)",
+        regionCode: "MIEN_TRUNG",
+        regionName: "Bắc & Trung Trung Bộ",
+        locationName: "Thuận Hóa (TP. Huế), Quảng Trị & Hà Tĩnh",
+        lat: 16.4637,
+        lng: 107.5909,
+        targetZoom: 8.5,
+        radiusMeters: 48000,
+        hazardCode: "HEAVY_RAIN",
+        hazardBadge: "CẢNH BÁO MƯA LỚN (21–22/10) & LŨ QUÉT",
+        severityLevel: "Cấp độ rủi ro Cấp 1 (Sạt lở sườn dốc & mưa lớn)",
+        colorHex: "#f97316",
+        iconEmoji: "🌧️",
+        currentTemp: "25°C (06h sáng)",
+        forecastTemp: "23°C – 32°C",
+        rainfallWind: "Dự báo đợt 21–22/10 mưa to cục bộ >50–70mm",
+        currentSummary: "Hiện tại sáng 18/10: Huế và Quảng Trị 24–25°C, ngày nắng 29–32°C; mực nước sông Hương, sông Gianh dao động theo điều tiết hồ chứa.",
+        forecastDetail: "Cảnh báo vùng núi Hà Tĩnh (Hương Khê, Hương Sơn) và Quảng Trị – Huế đề phòng lũ quét, sạt lở sườn dốc và đợt mưa lớn diện rộng ngày 21–22/10.",
+        sourceName: "NCHMF - Thủy văn hạn ngắn 18/10",
+        sourceUrl: "https://nchmf.gov.vn/kttvsite/vi-VN/1/ban-tin-canh-bao-du-bao-thuy-van-thoi-han-ngan-post55590.html"
+      },
+      {
+        id: 5,
+        shortLabel: "5. Đà Nẵng (>70mm)",
+        timestamp: "18/10/2026 06:00 (GMT+7)",
+        regionCode: "MIEN_TRUNG",
+        regionName: "Trung Trung Bộ",
+        locationName: "Hải Châu (TP. Đà Nẵng) & Cẩm Thành (Quảng Ngãi)",
+        lat: 16.0544,
+        lng: 108.2022,
+        targetZoom: 8.5,
+        radiusMeters: 45000,
+        hazardCode: "FLASH_FLOOD",
+        hazardBadge: "MƯA DÔNG CỤC BỘ >70MM & SẠT LỞ NÚI",
+        severityLevel: "Cấp độ rủi ro thiên tai: Cấp 1",
+        colorHex: "#f97316",
+        iconEmoji: "⛰️",
+        currentTemp: "25°C (06h sáng)",
+        forecastTemp: "23°C – 31°C",
+        rainfallWind: "Mưa rào và dông, cục bộ >70mm • Sóng 1.5–2.5m",
+        currentSummary: "Hiện tại sáng 18/10: Đà Nẵng và phía Đông Quảng Ngãi nằm trong vùng cảnh báo mưa dông mới của NCHMF.",
+        forecastDetail: "Dự báo ngày và đêm 18/10 có mưa rào và dông rải rác, cục bộ mưa to kèm lốc, sét, gió giật mạnh; vùng núi tiếp tục cảnh giác lũ quét, sạt lở đất.",
+        sourceName: "NCHMF - Cảnh báo Mưa dông 18/10",
+        sourceUrl: "https://nchmf.gov.vn/kttvsite/vi-VN/1/tin-canh-bao-mua-dong-mua-lon-cuc-bo-loc-set-mua-da-gio-giat-manh-o-khu-vuc-thanh-pho-da-nang-phia-dong-cac-tinh-tu-quang-ngai-den-dak-lak-khu-vuc-nam-bo-va-tinh-lam-dong-post55221.html"
+      },
+      {
+        id: 6,
+        shortLabel: "6. Tuy Hòa (>80mm)",
+        timestamp: "18/10/2026 06:00 (GMT+7)",
+        regionCode: "MIEN_TRUNG",
+        regionName: "Duyên hải Nam Trung Bộ",
+        locationName: "Tuy Hòa (Phía Đông Đắk Lắk) & Quy Nhơn (Gia Lai)",
+        lat: 13.0882,
+        lng: 109.3135,
+        targetZoom: 8.6,
+        radiusMeters: 48000,
+        hazardCode: "HEAVY_RAIN",
+        hazardBadge: "MƯA TO CỤC BỘ >80MM, LỐC SÉT & MƯA ĐÁ",
+        severityLevel: "Cấp độ rủi ro thiên tai: Cấp 1",
+        colorHex: "#f97316",
+        iconEmoji: "⛈️",
+        currentTemp: "25°C (Tuy Hòa & Quy Nhơn)",
+        forecastTemp: "23°C – 31°C",
+        rainfallWind: "Mưa 10–30mm, cục bộ >80mm • Gió cấp 2–3",
+        currentSummary: "Hiện tại sáng 18/10: Tuy Hòa và Quy Nhơn 25°C, trời nhiều mây.",
+        forecastDetail: "Dự báo ngày và đêm 18/10 phía Đông các tỉnh từ Gia Lai đến Đắk Lắk (Tuy Hòa) tiếp tục có mưa rào và dông rải rác, cục bộ mưa to trên 80mm kèm lốc, sét, mưa đá; mực nước sông Kôn và hạ lưu sông Ba dao động theo điều tiết hồ chứa.",
+        sourceName: "NCHMF - Cảnh báo Mưa lớn & Lốc sét",
+        sourceUrl: "https://nchmf.gov.vn/kttvsite/vi-VN/1/tin-canh-bao-mua-dong-mua-lon-cuc-bo-loc-set-mua-da-gio-giat-manh-o-khu-vuc-thanh-pho-da-nang-phia-dong-cac-tinh-tu-quang-ngai-den-dak-lak-khu-vuc-nam-bo-va-tinh-lam-dong-post55221.html"
+      },
+      {
+        id: 7,
+        shortLabel: "7. Nha Trang",
+        timestamp: "18/10/2026 06:00 (GMT+7)",
+        regionCode: "MIEN_TRUNG",
+        regionName: "Nam Trung Bộ",
+        locationName: "Nha Trang & Phan Rang (Khánh Hòa)",
+        lat: 12.2388,
+        lng: 109.1967,
+        targetZoom: 8.6,
+        radiusMeters: 48000,
+        hazardCode: "HEAVY_RAIN",
+        hazardBadge: "MƯA LỚN CỤC BỘ >80MM & MƯA ĐÁ",
+        severityLevel: "Cấp độ rủi ro thiên tai: Cấp 1",
+        colorHex: "#f97316",
+        iconEmoji: "🌩️",
+        currentTemp: "26°C (06h sáng)",
+        forecastTemp: "23°C – 31°C",
+        rainfallWind: "Mưa 10–30mm, có nơi >80mm • Sóng 1.5–2.5m",
+        currentSummary: "Hiện tại sáng 18/10: Nha Trang 26°C, Phan Rang 26°C.",
+        forecastDetail: "Dự báo chiều và tối 18/10 tại Khánh Hòa tiếp tục có mưa rào và rải rác có dông với lượng mưa 10–30mm, cục bộ mưa to trên 80mm kèm nguy cơ lốc, sét, mưa đá và ngập úng vùng trũng.",
+        sourceName: "NCHMF - Tin Cảnh báo Mưa lớn",
+        sourceUrl: "https://nchmf.gov.vn/kttvsite/vi-VN/1/tin-canh-bao-mua-dong-mua-lon-cuc-bo-loc-set-mua-da-gio-giat-manh-o-khu-vuc-phia-dong-cac-tinh-gia-lai-dak-lak-tinh-khanh-hoa-khu-vuc-nam-bo-va-tinh-lam-dong-post55221.html"
+      },
+      {
+        id: 8,
+        shortLabel: "8. Buôn Ma Thuột",
+        timestamp: "18/10/2026 06:00 (GMT+7)",
+        regionCode: "TAY_NGUYEN",
+        regionName: "Tây Nguyên (Bắc & Trung)",
+        locationName: "Buôn Ma Thuột (Đắk Lắk) & Pleiku (Gia Lai)",
+        lat: 12.6667,
+        lng: 108.0500,
+        targetZoom: 8.5,
+        radiusMeters: 52000,
+        hazardCode: "HEAVY_RAIN",
+        hazardBadge: "MƯA DÔNG PHÍA ĐÔNG >80MM & THỦY VĂN",
+        severityLevel: "Cấp 1 (Dông lốc, sét & điều tiết thủy điện)",
+        colorHex: "#f97316",
+        iconEmoji: "🌊",
+        currentTemp: "21°C (Pleiku 20°C / BMT 22°C)",
+        forecastTemp: "19°C – 31°C",
+        rainfallWind: "Phía Đông mưa cục bộ >70–80mm, gió nhẹ",
+        currentSummary: "Hiện tại 06h sáng 18/10: Pleiku 20°C, Buôn Ma Thuột 22°C; mực nước sông Krông Ana xuống chậm, sông Đăkbla dao động theo điều tiết thủy điện.",
+        forecastDetail: "Dự báo chiều tối 18/10 khu vực phía Đông Gia Lai – Đắk Lắk có mưa rào và dông, cục bộ mưa to >80mm kèm lốc, sét, mưa đá.",
+        sourceName: "NCHMF - Thủy văn hạn ngắn 18/10",
+        sourceUrl: "https://nchmf.gov.vn/kttvsite/vi-VN/1/ban-tin-canh-bao-du-bao-thuy-van-thoi-han-ngan-post55590.html"
+      },
+      {
+        id: 9,
+        shortLabel: "9. Lâm Đồng (72mm)",
+        timestamp: "18/10/2026 06:00 (GMT+7)",
+        regionCode: "TAY_NGUYEN",
+        regionName: "Tây Nguyên (Nam Tây Nguyên)",
+        locationName: "Bảo Lộc, Đà Lạt, Đạo Nghĩa 2, Bảo Lâm, Cát Tiên (Lâm Đồng)",
+        lat: 11.5478,
+        lng: 107.8077,
+        targetZoom: 8.6,
+        radiusMeters: 48000,
+        hazardCode: "FLASH_FLOOD",
+        hazardBadge: "KHẨN: LŨ QUÉT (24 XÃ) & MƯA LỚN >72–80MM",
+        severityLevel: "Cảnh báo Đỏ Lũ quét – Sạt lở sườn dốc & Cấp 1 Lốc sét",
+        colorHex: "#ef4444",
+        iconEmoji: "🚨",
+        currentTemp: "17°C (Đà Lạt) / 21°C (Bảo Lộc)",
+        forecastTemp: "17°C – 30°C",
+        rainfallWind: "Đạo Nghĩa 2 đã mưa 72mm; dự báo mưa tiếp >80mm",
+        currentSummary: "Hiện tại trạm Đạo Nghĩa 2 (Lâm Đồng) đã ghi nhận mưa lớn 72mm; sáng 18/10 Đà Lạt 17°C, Bảo Lộc 21°C.",
+        forecastDetail: "Dự báo ngày và đêm 18/10 Lâm Đồng tiếp tục mưa rào và dông, cục bộ mưa to trên 80mm; cảnh báo nguy cơ rất cao lũ quét, sạt lở đất tại 24 xã/phường (Bảo Lộc, Bảo Lâm, Cát Tiên, Đạ Huoai, Tà Đùng, Trà Tân).",
+        sourceName: "NCHMF - Cảnh báo Lũ quét Lâm Đồng",
+        sourceUrl: "https://nchmf.gov.vn/kttvsite/vi-VN/1/tin-canh-bao-lu-quet-sat-lo-dat-sut-lun-dat-do-mua-lu-hoac-dong-chay-tren-khu-vuc-tinh-lam-dong-va-dong-nai-post55587.html"
+      },
+      {
+        id: 10,
+        shortLabel: "10. Đồng Nai (>BĐ1)",
+        timestamp: "18/10/2026 06:00 (GMT+7)",
+        regionCode: "NAM_BO",
+        regionName: "Đông Nam Bộ",
+        locationName: "Tà Lài, Phước Long, Bù Đăng, Lộc Ninh, Biên Hòa (Đồng Nai)",
+        lat: 11.7500,
+        lng: 106.9000,
+        targetZoom: 8.6,
+        radiusMeters: 46000,
+        hazardCode: "FLASH_FLOOD",
+        hazardBadge: "LŨ SÔNG ĐỒNG NAI TRÊN BĐ1 & SẠT LỞ (24 XÃ)",
+        severityLevel: "Cảnh báo Lũ trên BĐ1 (Tà Lài) & Lũ quét 24 xã/phường",
+        colorHex: "#ef4444",
+        iconEmoji: "⚠️",
+        currentTemp: "24°C (06h sáng)",
+        forecastTemp: "23°C – 33°C",
+        rainfallWind: "Mưa 10–30mm, cục bộ >80mm • Sông Đồng Nai > BĐ1",
+        currentSummary: "Hiện tại sáng 18/10 (Bản tin thủy văn NCHMF): Mực nước trên sông Đồng Nai tại trạm Tà Lài đang dao động ở mức TRÊN BÁO ĐỘNG 1 (BĐ1), sông Bé dao động theo điều tiết thủy điện.",
+        forecastDetail: "Dự báo chiều tối 18/10 tiếp tục mưa to cục bộ >80mm; cảnh giác lũ quét, sạt lở đất tại 24 xã/phường (Bù Đăng, Bù Gia Mập, Lộc Ninh, Phước Long) và ngập trũng ven sông Đồng Nai.",
+        sourceName: "NCHMF - Thủy văn hạn ngắn 18/10",
+        sourceUrl: "https://nchmf.gov.vn/kttvsite/vi-VN/1/ban-tin-canh-bao-du-bao-thuy-van-thoi-han-ngan-post55590.html"
+      },
+      {
+        id: 11,
+        shortLabel: "11. TP. Hồ Chí Minh",
+        timestamp: "18/10/2026 06:00 (GMT+7)",
+        regionCode: "NAM_BO",
+        regionName: "Đông Nam Bộ (Đô thị trung tâm)",
+        locationName: "Quận 1 / Sài Gòn, TP. Hồ Chí Minh",
+        lat: 10.7769,
+        lng: 106.7009,
+        targetZoom: 8.6,
+        radiusMeters: 42000,
+        hazardCode: "HEAVY_RAIN",
+        hazardBadge: "MƯA RẤT TO >80MM, SẤM SÉT & NGẬP ĐÔ THỊ",
+        severityLevel: "Cấp 1 (Lốc, sét, gió giật mạnh & ngập úng đô thị)",
+        colorHex: "#ef4444",
+        iconEmoji: "⚡",
+        currentTemp: "26°C (06h sáng)",
+        forecastTemp: "25°C – 33°C",
+        rainfallWind: "Mưa 10–30mm, cục bộ vượt 80mm • Gió giật mạnh",
+        currentSummary: "Hiện tại sáng 18/10: TP.HCM 26°C, trời có mây, ban ngày nắng gián đoạn 32–33°C.",
+        forecastDetail: "Dự báo chiều và tối 18/10 do nhiễu động gió Đông hoạt động mạnh, TP.HCM và Đông Nam Bộ tiếp tục có mưa rào và rải rác có dông, cục bộ mưa to trên 80mm kèm sấm sét, gió giật và nguy cơ ngập sâu các tuyến đường trũng.",
+        sourceName: "VietNamNet / NCHMF - Cảnh báo Mưa Nam Bộ",
+        sourceUrl: "https://vietnamnet.vn/du-bao-thoi-tiet-17-10-2026-mien-bac-nang-34-do-keo-dai-nam-bo-mua-to-cuc-bo-2514375.html"
+      },
+      {
+        id: 12,
+        shortLabel: "12. ĐBSCL (172mm)",
+        timestamp: "18/10/2026 06:00 (GMT+7)",
+        regionCode: "NAM_BO",
+        regionName: "Tây Nam Bộ (ĐBSCL)",
+        locationName: "Vọng Đông (An Giang 172mm), Viên An (Cà Mau 91mm) & Cần Thơ",
+        lat: 10.0452,
+        lng: 105.7469,
+        targetZoom: 8.5,
+        radiusMeters: 55000,
+        hazardCode: "HEAVY_RAIN",
+        hazardBadge: "TÂM MƯA LỚN 91–172MM, LỐC SÉT & NGẬP ÚNG",
+        severityLevel: "Cấp độ rủi ro thiên tai: Cấp 1 (Ngập úng & Lốc sét)",
+        colorHex: "#ef4444",
+        iconEmoji: "🌧️",
+        currentTemp: "25°C (06h sáng)",
+        forecastTemp: "23°C – 33°C",
+        rainfallWind: "Đã mưa 91–172mm; dự báo tiếp tục mưa to >80mm",
+        currentSummary: "Hiện tại số liệu thực đo NCHMF ghi nhận tâm mưa đặc biệt lớn tại Vọng Đông (An Giang) đạt 172mm và Viên An (Cà Mau) đạt 91mm; mực nước đầu nguồn sông Cửu Long biến đổi theo triều.",
+        forecastDetail: "Dự báo ngày và đêm 18/10 khu vực ĐBSCL tiếp tục có mưa rào và dông rải rác, cục bộ mưa to >80mm kèm lốc, sét, mưa đá và gió giật mạnh.",
+        sourceName: "NCHMF - Thực đo & Cảnh báo Mưa lớn 18/10",
+        sourceUrl: "https://nchmf.gov.vn/kttvsite/vi-VN/1/tin-canh-bao-mua-dong-mua-lon-cuc-bo-loc-set-mua-da-gio-giat-manh-o-khu-vuc-thanh-pho-da-nang-phia-dong-cac-tinh-tu-quang-ngai-den-dak-lak-khu-vuc-nam-bo-va-tinh-lam-dong-post55221.html"
+      },
+      {
+        id: 13,
+        shortLabel: "13. Biển Nam Bộ (Cấp 7-8)",
+        timestamp: "18/10/2026 06:00 (GMT+7)",
+        regionCode: "BIEN_DONG",
+        regionName: "Vùng Biển Nam Trung Bộ – Nam Bộ",
+        locationName: "Vùng biển từ Đà Nẵng đến Cà Mau, Cà Mau – An Giang & Vịnh Thái Lan",
+        lat: 10.5000,
+        lng: 109.5000,
+        targetZoom: 6.8,
+        radiusMeters: 115000,
+        hazardCode: "MARINE_STORM",
+        hazardBadge: "LỐC XOÁY BIỂN & GIÓ GIẬT CẤP 7–8 (04H 18/10)",
+        severityLevel: "Cảnh báo nguy hiểm hàng hải & tàu thuyền",
+        colorHex: "#06b6d4",
+        iconEmoji: "🌪️",
+        currentTemp: "Tầm nhìn xa giảm 4–10km trong mưa",
+        forecastTemp: "Sóng biển cao > 2,0m",
+        rainfallWind: "Gió giật mạnh cấp 7–8 • Lốc xoáy trên biển",
+        currentSummary: "Bản tin NCHMF cập nhật lúc 04h00 sáng 18/10: Ngày và đêm 18/10 vùng biển từ TP. Đà Nẵng đến Cà Mau, từ Cà Mau đến An Giang và vịnh Thái Lan tiếp tục có mưa rào và dông rải rác.",
+        forecastDetail: "Trong mưa dông có khả năng cao xảy ra lốc xoáy, gió giật mạnh cấp 7–8, sóng biển cao trên 2,0m. Toàn bộ tàu thuyền hoạt động trong khu vực đều có nguy cơ chịu tác động.",
+        sourceName: "NCHMF - Tin Mưa dông trên biển (04h 18/10)",
+        sourceUrl: "https://nchmf.gov.vn/kttvsite/vi-VN/1/tin-du-bao-gio-manh-song-lon-va-mua-dong-tren-bien-post55284.html"
+      },
+      {
+        id: 14,
+        shortLabel: "14. Trường Sa (Bão/ATNĐ)",
+        timestamp: "18/10/2026 06:00 (GMT+7)",
+        regionCode: "BIEN_DONG",
+        regionName: "Biển Đông & Quần đảo",
+        locationName: "Khu vực Giữa & Nam Biển Đông (Đặc khu Trường Sa) – Giám sát Bão/ATNĐ",
+        lat: 9.5000,
+        lng: 114.0000,
+        targetZoom: 6.4,
+        radiusMeters: 165000,
+        hazardCode: "MARINE_STORM",
+        hazardBadge: "SÓNG LỚN 2–3M, LỐC XOÁY & GIÁM SÁT BÃO/ATNĐ",
+        severityLevel: "Cảnh báo dông lốc biển & Theo dõi xoáy thuận nhiệt đới",
+        colorHex: "#a855f7",
+        iconEmoji: "🌀",
+        currentTemp: "Tầm nhìn giảm 4–10km trong mưa dông",
+        forecastTemp: "Sóng > 2,0m (Bắc Biển Đông 2–3m)",
+        rainfallWind: "Gió giật cấp 7–8 • Dự báo ~1–2 Bão/ATNĐ",
+        currentSummary: "Hiện tại sáng 18/10 vùng Giữa và Nam Biển Đông (bao gồm đặc khu Trường Sa) có mưa rào và dông rải rác, trong mưa dông có lốc xoáy, gió giật cấp 7–8, sóng biển cao trên 2,0m; Bắc Biển Đông và Hoàng Sa sóng cao 2,0–3,0m.",
+        forecastDetail: "Tiếp tục theo dõi chặt chẽ khả năng hình thành 1–2 cơn bão/ATNĐ trên Biển Đông từ nay đến giữa tháng 11/2026 có nguy cơ ảnh hưởng đất liền Trung Bộ.",
+        sourceName: "NCHMF - Dự báo Sóng & Biển Đông 18/10",
+        sourceUrl: "https://nchmf.gov.vn/KttvSiteE/vi-VN/1/ban-tin-du-bao-song-10-ngay-toi-tu-ngay-09-10-den-ngay-18-10-2026-post54280.html"
+      }
+    ];
+
+    let WEATHER_POINTS = JSON.parse(JSON.stringify(DEFAULT_WEATHER_POINTS));
+
+    // =========================================================================
+    // DỮ LIỆU ĐỊA LÝ ĐỘ PHÂN GIẢI CAO (VIỆT NAM, ĐÔNG DƯƠNG, 63 TỈNH/THÀNH,
+    // 90+ HUYỆN/THỊ XÃ/ĐÈO/HỒ CHỨA, 19 SÔNG LỚN, 14 QUỐC LỘ & CAO TỐC)
+    // =========================================================================
+    const VN_MAINLAND_COORDS = [
+      [21.52, 107.98], [21.62, 108.05], [22.25, 106.72], [22.82, 106.78], [23.02, 105.85],
+      [23.37, 105.32], [22.95, 104.78], [22.75, 103.85], [22.80, 103.15], [22.45, 102.15],
+      [21.65, 102.75], [21.15, 103.05], [20.65, 103.95], [20.42, 104.45], [19.95, 104.88],
+      [19.45, 103.92], [19.22, 104.22], [18.62, 105.05], [18.15, 105.35], [17.55, 105.75],
+      [16.65, 106.58], [16.05, 107.25], [15.35, 107.52], [14.68, 107.55], [13.95, 107.45],
+      [13.35, 107.52], [12.35, 107.48], [11.95, 106.92], [11.65, 106.02], [11.05, 106.18],
+      [10.92, 105.45], [10.45, 104.48], [10.02, 104.98], [9.52, 104.82], [8.60, 104.72],
+      [8.58, 105.18], [9.15, 105.78], [9.58, 106.38], [10.12, 106.78], [10.35, 107.08],
+      [10.68, 107.82], [11.18, 108.68], [11.58, 109.12], [12.25, 109.25], [12.88, 109.45],
+      [13.78, 109.25], [14.55, 109.08], [15.22, 108.92], [15.88, 108.38], [16.32, 107.85],
+      [17.05, 107.10], [17.95, 106.48], [18.75, 105.78], [19.38, 105.82], [19.95, 106.08],
+      [20.68, 106.72], [21.02, 107.38], [21.52, 107.98]
+    ];
+
+    const VN_REGIONS_POLYS = [
+      {
+        name: "Tây Bắc Bộ",
+        fillHybrid: "#1f5f3b", fillRoadmap: "#e2f2e6", fillTerrain: "#4d7c3f",
+        coords: [[22.80, 103.15], [22.45, 102.15], [21.65, 102.75], [21.15, 103.05], [20.65, 103.95], [20.42, 104.45], [20.65, 105.35], [21.55, 104.85], [22.75, 103.85]]
+      },
+      {
+        name: "Đông Bắc Bộ & Đồng bằng Sông Hồng",
+        fillHybrid: "#276e45", fillRoadmap: "#f1f5f9", fillTerrain: "#386b42",
+        coords: [[23.37, 105.32], [23.02, 105.85], [22.82, 106.78], [22.25, 106.72], [21.52, 107.98], [21.02, 107.38], [20.68, 106.72], [19.95, 106.08], [20.42, 104.45], [21.55, 104.85], [22.75, 103.85], [22.95, 104.78]]
+      },
+      {
+        name: "Bắc Trung Bộ",
+        fillHybrid: "#22633e", fillRoadmap: "#f8fafc", fillTerrain: "#527d44",
+        coords: [[20.42, 104.45], [19.95, 106.08], [19.38, 105.82], [18.75, 105.78], [17.95, 106.48], [17.05, 107.10], [16.32, 107.85], [16.05, 107.25], [16.65, 106.58], [17.55, 105.75], [18.15, 105.35], [18.62, 105.05], [19.22, 104.22], [19.45, 103.92], [19.95, 104.88]]
+      },
+      {
+        name: "Duyên hải Nam Trung Bộ",
+        fillHybrid: "#2d7548", fillRoadmap: "#f1f5f9", fillTerrain: "#477849",
+        coords: [[16.32, 107.85], [15.88, 108.38], [15.22, 108.92], [14.55, 109.08], [13.78, 109.25], [12.88, 109.45], [12.25, 109.25], [11.58, 109.12], [11.18, 108.68], [10.68, 107.82], [11.35, 107.75], [12.25, 108.65], [13.85, 108.65], [15.15, 108.25], [16.05, 107.25]]
+      },
+      {
+        name: "Cao nguyên Trung Bộ (Tây Nguyên)",
+        fillHybrid: "#3b6e32", fillRoadmap: "#dcfce7", fillTerrain: "#7c6f38",
+        coords: [[15.35, 107.52], [15.15, 108.25], [13.85, 108.65], [12.25, 108.65], [11.35, 107.75], [11.95, 106.92], [12.35, 107.48], [13.35, 107.52], [13.95, 107.45], [14.68, 107.55]]
+      },
+      {
+        name: "Đông Nam Bộ",
+        fillHybrid: "#2b7347", fillRoadmap: "#fef9c3", fillTerrain: "#437a49",
+        coords: [[11.95, 106.92], [11.35, 107.75], [10.68, 107.82], [10.35, 107.08], [10.45, 106.35], [11.05, 106.18], [11.65, 106.02]]
+      },
+      {
+        name: "Tây Nam Bộ (ĐBSCL)",
+        fillHybrid: "#257a4c", fillRoadmap: "#ecfdf5", fillTerrain: "#317049",
+        coords: [[11.05, 106.18], [10.45, 106.35], [10.12, 106.78], [9.58, 106.38], [9.15, 105.78], [8.58, 105.18], [8.60, 104.72], [9.52, 104.82], [10.02, 104.98], [10.45, 104.48], [10.92, 105.45]]
+      }
+    ];
+
+    const NEIGHBOR_MASS_WEST = [
+      [25.5, 97.0], [25.5, 110.5], [21.52, 107.98], [22.25, 106.72], [23.37, 105.32],
+      [22.45, 102.15], [20.42, 104.45], [19.45, 103.92], [17.55, 105.75], [16.05, 107.25],
+      [13.95, 107.45], [11.95, 106.92], [11.65, 106.02], [10.45, 104.48], [10.6, 103.0],
+      [13.2, 100.2], [18.0, 97.0], [25.5, 97.0]
+    ];
+
+    const HAINAN_ISLAND = [
+      [20.05, 109.25], [20.12, 110.55], [19.65, 110.98], [18.85, 110.45],
+      [18.22, 109.52], [18.55, 108.68], [19.35, 108.65], [20.05, 109.25]
+    ];
+
+    const PHU_QUOC_ISLAND = [
+      [10.42, 103.85], [10.40, 104.06], [10.02, 104.03], [10.05, 103.92], [10.42, 103.85]
+    ];
+
+    const MAJOR_RIVERS = [
+      [[22.65, 103.85], [22.15, 104.45], [21.65, 104.92], [21.32, 105.40], [21.03, 105.85], [20.65, 106.08], [20.25, 106.58]],
+      [[22.15, 102.85], [21.55, 103.55], [21.15, 104.15], [20.82, 104.75], [21.28, 105.35]],
+      [[22.85, 104.95], [22.15, 105.18], [21.65, 105.28], [21.32, 105.40]],
+      [[20.85, 104.05], [20.35, 104.85], [20.05, 105.45], [19.80, 105.88]],
+      [[19.55, 104.15], [19.15, 104.75], [18.85, 105.35], [18.75, 105.75]],
+      [[17.85, 105.85], [17.75, 106.15], [17.70, 106.48]],
+      [[16.22, 107.35], [16.38, 107.52], [16.55, 107.62]],
+      [[15.45, 107.75], [15.72, 108.05], [15.88, 108.38]],
+      [[14.95, 108.35], [15.08, 108.62], [15.15, 108.88]],
+      [[14.25, 108.65], [13.95, 108.95], [13.82, 109.22]],
+      [[14.35, 108.35], [13.85, 108.52], [13.38, 108.85], [13.05, 109.08], [13.08, 109.31]],
+      [[12.28, 108.78], [12.25, 108.98], [12.25, 109.19]],
+      [[14.65, 107.95], [14.35, 107.75], [13.95, 107.45]],
+      [[12.15, 108.45], [12.48, 108.15], [12.68, 107.92], [12.88, 107.62], [13.05, 107.25]],
+      [[11.95, 108.35], [11.65, 107.95], [11.42, 107.42], [11.18, 107.02], [10.95, 106.82], [10.62, 106.88]],
+      [[12.05, 107.15], [11.75, 106.90], [11.45, 106.78], [11.18, 106.88]],
+      [[11.45, 106.32], [11.12, 106.52], [10.78, 106.70], [10.55, 106.82]],
+      [[10.90, 105.18], [10.65, 105.42], [10.38, 105.78], [10.25, 106.18], [9.95, 106.65]],
+      [[10.75, 105.08], [10.42, 105.38], [10.04, 105.75], [9.78, 106.02], [9.52, 106.25]]
+    ];
+
+    const HIGHWAYS = [
+      {
+        code: "QL1A",
+        badgePos: [13.45, 109.22],
+        coords: [
+          [21.85, 106.75], [21.45, 106.32], [21.03, 105.85], [20.55, 105.92], [19.81, 105.78],
+          [18.67, 105.68], [18.34, 105.90], [17.47, 106.62], [16.82, 107.10], [16.46, 107.59],
+          [16.05, 108.20], [15.57, 108.48], [15.12, 108.80], [14.42, 109.02], [13.78, 109.20],
+          [13.09, 109.30], [12.68, 109.20], [12.24, 109.18], [11.58, 108.99], [11.18, 108.55],
+          [10.93, 108.10], [10.92, 107.42], [10.95, 106.85], [10.78, 106.70], [10.55, 106.40],
+          [10.35, 106.36], [10.04, 105.75], [9.60, 105.97], [9.29, 105.72], [9.18, 105.15]
+        ]
+      },
+      {
+        code: "QL14",
+        badgePos: [12.32, 107.82],
+        coords: [
+          [20.65, 105.45], [19.35, 105.18], [18.15, 105.65], [16.68, 106.68], [15.85, 107.55],
+          [15.15, 107.78], [14.35, 108.00], [13.98, 108.00], [13.35, 108.12], [12.67, 108.05],
+          [12.25, 107.78], [12.00, 107.69], [11.78, 107.25], [11.55, 106.88], [11.12, 106.62], [10.78, 106.70]
+        ]
+      },
+      {
+        code: "QL6",
+        badgePos: [21.05, 104.35],
+        coords: [[21.03, 105.85], [20.82, 105.33], [20.85, 104.65], [21.32, 103.91], [21.55, 103.45], [21.39, 103.02]]
+      },
+      {
+        code: "CT05",
+        badgePos: [21.65, 104.95],
+        coords: [[21.03, 105.85], [21.32, 105.40], [21.72, 104.90], [22.48, 103.97]]
+      },
+      {
+        code: "QL19",
+        badgePos: [13.92, 108.62],
+        coords: [[13.78, 109.20], [13.95, 108.65], [13.98, 108.00]]
+      },
+      {
+        code: "QL25",
+        badgePos: [13.22, 108.85],
+        coords: [[13.09, 109.30], [13.15, 108.95], [13.38, 108.45], [13.72, 108.12], [13.98, 108.00]]
+      },
+      {
+        code: "QL29",
+        badgePos: [12.92, 108.92],
+        coords: [[13.09, 109.30], [12.95, 109.12], [12.92, 108.75], [12.88, 108.42], [12.92, 108.22]]
+      },
+      {
+        code: "QL26",
+        badgePos: [12.68, 108.65],
+        coords: [[12.24, 109.18], [12.50, 109.12], [12.72, 108.75], [12.78, 108.45], [12.67, 108.05]]
+      },
+      {
+        code: "QL27",
+        badgePos: [12.18, 108.25],
+        coords: [[11.58, 108.99], [11.82, 108.65], [11.94, 108.45], [12.15, 108.18], [12.67, 108.05]]
+      },
+      {
+        code: "QL20",
+        badgePos: [11.42, 107.68],
+        coords: [[10.95, 107.12], [11.25, 107.45], [11.55, 107.81], [11.58, 108.08], [11.75, 108.38], [11.94, 108.45]]
+      },
+      {
+        code: "QL28",
+        badgePos: [11.35, 108.05],
+        coords: [[10.93, 108.10], [11.35, 108.05], [11.58, 108.08], [11.82, 107.85], [12.00, 107.69]]
+      },
+      {
+        code: "QL13",
+        badgePos: [11.38, 106.62],
+        coords: [[10.78, 106.70], [11.05, 106.65], [11.42, 106.62], [11.65, 106.60], [11.85, 106.58]]
+      },
+      {
+        code: "QL91",
+        badgePos: [10.28, 105.52],
+        coords: [[10.04, 105.75], [10.38, 105.43], [10.70, 105.12], [10.01, 105.08]]
+      }
+    ];
+
+    const PROVINCE_LABELS = [
+      { name: "THỦ ĐÔ HÀ NỘI", lat: 21.03, lng: 105.85, minZoom: 4.5, major: true },
+      { name: "TP. Hải Phòng", lat: 20.84, lng: 106.68, minZoom: 5.8 },
+      { name: "Hạ Long (Quảng Ninh)", lat: 20.96, lng: 107.05, minZoom: 5.8 },
+      { name: "Việt Trì (Phú Thọ)", lat: 21.32, lng: 105.40, minZoom: 5.5 },
+      { name: "Vĩnh Yên (Phú Thọ)", lat: 21.31, lng: 105.60, minZoom: 7.0 },
+      { name: "Thái Nguyên", lat: 21.59, lng: 105.84, minZoom: 6.2 },
+      { name: "Lạng Sơn", lat: 21.85, lng: 106.76, minZoom: 6.2 },
+      { name: "Cao Bằng", lat: 22.66, lng: 106.25, minZoom: 6.2 },
+      { name: "Hà Giang (Tuyên Quang)", lat: 22.82, lng: 104.98, minZoom: 6.2 },
+      { name: "Lào Cai", lat: 22.48, lng: 103.97, minZoom: 6.0 },
+      { name: "Điện Biên Phủ", lat: 21.39, lng: 103.02, minZoom: 5.2, major: true },
+      { name: "TP. Sơn La", lat: 21.32, lng: 103.91, minZoom: 5.8 },
+      { name: "Lai Châu", lat: 22.39, lng: 103.45, minZoom: 6.2 },
+      { name: "Hòa Bình", lat: 20.81, lng: 105.33, minZoom: 6.5 },
+      { name: "Ninh Bình", lat: 20.25, lng: 105.97, minZoom: 6.2 },
+      { name: "Thanh Hóa", lat: 19.81, lng: 105.78, minZoom: 5.5 },
+      { name: "Vinh (Nghệ An)", lat: 18.67, lng: 105.68, minZoom: 5.5 },
+      { name: "Hà Tĩnh", lat: 18.34, lng: 105.90, minZoom: 6.0 },
+      { name: "Đồng Hới (Quảng Trị)", lat: 17.47, lng: 106.62, minZoom: 6.0 },
+      { name: "Đông Hà (Quảng Trị)", lat: 16.82, lng: 107.10, minZoom: 6.0 },
+      { name: "TP. HUẾ", lat: 16.46, lng: 107.59, minZoom: 5.0, major: true },
+      { name: "TP. ĐÀ NẴNG", lat: 16.05, lng: 108.20, minZoom: 4.8, major: true },
+      { name: "Tam Kỳ (Đà Nẵng)", lat: 15.57, lng: 108.48, minZoom: 6.5 },
+      { name: "Quảng Ngãi", lat: 15.12, lng: 108.80, minZoom: 5.8 },
+      { name: "Kon Tum", lat: 14.35, lng: 108.00, minZoom: 6.0 },
+      { name: "Pleiku (Gia Lai)", lat: 13.98, lng: 108.00, minZoom: 5.2, major: true },
+      { name: "Quy Nhơn (Gia Lai)", lat: 13.78, lng: 109.22, minZoom: 5.2, major: true },
+      { name: "TUY HÒA (ĐẮK LẮK)", lat: 13.09, lng: 109.31, minZoom: 5.0, major: true },
+      { name: "BUÔN MA THUỘT (ĐẮK LẮK)", lat: 12.67, lng: 108.05, minZoom: 5.0, major: true },
+      { name: "NHA TRANG (KHÁNH HÒA)", lat: 12.24, lng: 109.19, minZoom: 5.0, major: true },
+      { name: "Phan Rang (Khánh Hòa)", lat: 11.58, lng: 108.99, minZoom: 6.0 },
+      { name: "ĐÀ LẠT (LÂM ĐỒNG)", lat: 11.94, lng: 108.45, minZoom: 5.2, major: true },
+      { name: "BẢO LỘC (LÂM ĐỒNG)", lat: 11.55, lng: 107.81, minZoom: 5.5, major: true },
+      { name: "Gia Nghĩa (Lâm Đồng)", lat: 12.00, lng: 107.69, minZoom: 6.0 },
+      { name: "Phan Thiết (Lâm Đồng)", lat: 10.93, lng: 108.10, minZoom: 5.8 },
+      { name: "Phước Long (Đồng Nai)", lat: 11.83, lng: 106.99, minZoom: 5.8 },
+      { name: "Đồng Xoài (Đồng Nai)", lat: 11.53, lng: 106.89, minZoom: 6.5 },
+      { name: "Biên Hòa (Đồng Nai)", lat: 10.95, lng: 106.85, minZoom: 5.8 },
+      { name: "TP. HỒ CHÍ MINH", lat: 10.78, lng: 106.70, minZoom: 4.5, major: true },
+      { name: "Vũng Tàu", lat: 10.35, lng: 107.08, minZoom: 6.0 },
+      { name: "Tây Ninh", lat: 11.31, lng: 106.10, minZoom: 6.2 },
+      { name: "Mỹ Tho (Đồng Tháp)", lat: 10.36, lng: 106.36, minZoom: 6.2 },
+      { name: "TP. CẦN THƠ", lat: 10.04, lng: 105.75, minZoom: 4.8, major: true },
+      { name: "Long Xuyên (An Giang)", lat: 10.38, lng: 105.43, minZoom: 6.0 },
+      { name: "Rạch Giá (An Giang)", lat: 10.01, lng: 105.08, minZoom: 6.0 },
+      { name: "TP. Cà Mau", lat: 9.18, lng: 105.15, minZoom: 5.5 },
+
+      // Cấp Huyện / Thị xã / Đèo / Hồ chứa (Hiện khi Zoom >= 7.0)
+      { name: "TX. Đông Hòa", lat: 12.98, lng: 109.30, minZoom: 7.0, district: true },
+      { name: "H. Tây Hòa", lat: 13.02, lng: 109.15, minZoom: 7.0, district: true },
+      { name: "H. Phú Hòa", lat: 13.13, lng: 109.20, minZoom: 7.0, district: true },
+      { name: "H. Tuy An", lat: 13.30, lng: 109.22, minZoom: 7.0, district: true },
+      { name: "TX. Sông Cầu", lat: 13.45, lng: 109.22, minZoom: 7.0, district: true },
+      { name: "H. Sông Hinh (Hồ Ba Hạ)", lat: 12.96, lng: 108.88, minZoom: 7.0, district: true },
+      { name: "H. Sơn Hòa", lat: 13.18, lng: 108.96, minZoom: 7.0, district: true },
+      { name: "Đèo Cả", lat: 12.87, lng: 109.38, minZoom: 7.0, district: true },
+      { name: "H. Vạn Ninh", lat: 12.72, lng: 109.22, minZoom: 7.0, district: true },
+      { name: "TX. Ninh Hòa", lat: 12.50, lng: 109.12, minZoom: 7.0, district: true },
+      { name: "TP. Cam Ranh", lat: 11.92, lng: 109.15, minZoom: 7.0, district: true },
+      { name: "H. M'Đrắk", lat: 12.72, lng: 108.75, minZoom: 7.0, district: true },
+      { name: "H. Ea Kar", lat: 12.81, lng: 108.45, minZoom: 7.0, district: true },
+      { name: "H. Krông Pắc", lat: 12.70, lng: 108.28, minZoom: 7.0, district: true },
+      { name: "TX. Buôn Hồ", lat: 12.92, lng: 108.26, minZoom: 7.0, district: true },
+      { name: "H. Bản Đôn (Srêpôk)", lat: 12.88, lng: 107.78, minZoom: 7.0, district: true },
+      { name: "TX. An Khê", lat: 13.95, lng: 108.65, minZoom: 7.0, district: true },
+      { name: "TX. Ayun Pa", lat: 13.38, lng: 108.45, minZoom: 7.0, district: true },
+      { name: "H. Chư Sê", lat: 13.68, lng: 108.08, minZoom: 7.0, district: true },
+      { name: "H. Bảo Lâm (Lũ quét)", lat: 11.68, lng: 107.75, minZoom: 7.0, district: true },
+      { name: "H. Đạ Huoai (Đèo Bảo Lộc)", lat: 11.42, lng: 107.62, minZoom: 7.0, district: true },
+      { name: "H. Cát Tiên", lat: 11.62, lng: 107.36, minZoom: 7.0, district: true },
+      { name: "H. Di Linh", lat: 11.58, lng: 108.08, minZoom: 7.0, district: true },
+      { name: "H. Lâm Hà", lat: 11.82, lng: 108.22, minZoom: 7.0, district: true },
+      { name: "H. Đức Trọng", lat: 11.73, lng: 108.37, minZoom: 7.0, district: true },
+      { name: "Hồ Tà Đùng", lat: 11.85, lng: 107.98, minZoom: 7.0, district: true },
+      { name: "H. Hàm Thuận", lat: 11.15, lng: 108.15, minZoom: 7.0, district: true },
+      { name: "H. Bù Đăng (Sạt lở)", lat: 11.82, lng: 107.25, minZoom: 7.0, district: true },
+      { name: "H. Bù Gia Mập", lat: 12.08, lng: 107.15, minZoom: 7.0, district: true },
+      { name: "H. Lộc Ninh", lat: 11.85, lng: 106.58, minZoom: 7.0, district: true },
+      { name: "H. Phú Riềng", lat: 11.68, lng: 106.88, minZoom: 7.0, district: true },
+      { name: "Hồ Trị An", lat: 11.15, lng: 107.08, minZoom: 7.0, district: true },
+      { name: "TP. Thủ Đức", lat: 10.82, lng: 106.78, minZoom: 7.2, district: true },
+      { name: "H. Củ Chi", lat: 11.02, lng: 106.50, minZoom: 7.2, district: true },
+      { name: "H. Cần Giờ", lat: 10.50, lng: 106.88, minZoom: 7.2, district: true },
+      { name: "Q. Ba Đình / Hồ Tây", lat: 21.05, lng: 105.82, minZoom: 7.2, district: true },
+      { name: "H. Đông Anh", lat: 21.15, lng: 105.85, minZoom: 7.2, district: true },
+      { name: "Tam Đảo", lat: 21.45, lng: 105.64, minZoom: 7.0, district: true },
+      { name: "Đèo Pha Đin", lat: 21.56, lng: 103.51, minZoom: 7.0, district: true },
+      { name: "H. Mộc Châu", lat: 20.84, lng: 104.64, minZoom: 7.0, district: true },
+      { name: "Đèo Hải Vân", lat: 16.19, lng: 108.13, minZoom: 7.0, district: true },
+      { name: "TP. Hội An", lat: 15.88, lng: 108.33, minZoom: 7.0, district: true },
+      { name: "H. Hướng Hóa", lat: 16.63, lng: 106.73, minZoom: 7.0, district: true },
+      { name: "H. A Lưới", lat: 16.25, lng: 107.25, minZoom: 7.0, district: true }
+    ];
+
+    const ARCHIPELAGOS = [
+      { name: "QUẦN ĐẢO HOÀNG SA (VIỆT NAM)", lat: 16.5, lng: 112.0, major: true },
+      { name: "QUẦN ĐẢO TRƯỜNG SA (VIỆT NAM)", lat: 9.8, lng: 114.2, major: true },
+      { name: "Đảo Phú Quốc", lat: 10.22, lng: 103.96, major: false },
+      { name: "Côn Đảo", lat: 8.68, lng: 106.60, major: false },
+      { name: "Đảo Lý Sơn", lat: 15.38, lng: 109.11, major: false },
+      { name: "Đảo Phú Quý", lat: 10.52, lng: 108.93, major: false },
+      { name: "Đảo Bạch Long Vĩ", lat: 20.13, lng: 107.72, major: false },
+      { name: "Đảo Cồn Cỏ", lat: 17.16, lng: 107.34, major: false }
+    ];
+
+    // =========================================================================
+    // ENGINE BẢN ĐỒ TỰ CHỦ (FALLBACK NẾU CDN LEAFLET BỊ CHẶN HOẶC KẾT HỢP LEAFLET)
+    // =========================================================================
+    let currentTileMode = "hybrid";
+    const mapStageEl = document.getElementById("map-stage");
+    const gisCanvas = document.getElementById("gis-base-canvas");
+    const gisCtx = gisCanvas.getContext("2d");
+
+    if (typeof window.L === "undefined") {
+      window.L = (function () {
+        function MiniMap(elId, opts) {
+          this.el = document.getElementById(elId);
+          this.center = { lat: opts.center[0], lng: opts.center[1] };
+          this.zoom = opts.zoom || 5.5;
+          this.listeners = {};
+          this.popupEl = document.createElement("div");
+          this.popupEl.style.cssText = "position:absolute;z-index:480;display:none;transform:translate(-50%,-100%);pointer-events:auto;";
+          this.el.appendChild(this.popupEl);
+
+          this.markerContainer = document.createElement("div");
+          this.markerContainer.style.cssText = "position:absolute;inset:0;z-index:350;pointer-events:none;";
+          this.el.appendChild(this.markerContainer);
+
+          let dragging = false, sx = 0, sy = 0, sLat = 0, sLng = 0;
+          const onStart = (cx, cy) => { dragging = true; sx = cx; sy = cy; sLat = this.center.lat; sLng = this.center.lng; };
+          const onMove = (cx, cy) => {
+            if (!dragging) return;
+            const scale = 256 * Math.pow(2, this.zoom);
+            const degPerPx = 360 / scale;
+            this.center.lng = sLng - (cx - sx) * degPerPx;
+            this.center.lat = Math.max(-80, Math.min(80, sLat + (cy - sy) * degPerPx * Math.cos(this.center.lat * Math.PI / 180)));
+            this._emit("move");
+          };
+          const onEnd = () => { if (dragging) { dragging = false; this._emit("moveend"); } };
+          this.el.addEventListener("mousedown", (e) => onStart(e.clientX, e.clientY));
+          window.addEventListener("mousemove", (e) => onMove(e.clientX, e.clientY));
+          window.addEventListener("mouseup", onEnd);
+          this.el.addEventListener("touchstart", (e) => { if (e.touches[0]) onStart(e.touches[0].clientX, e.touches[0].clientY); }, { passive: true });
+          this.el.addEventListener("touchmove", (e) => { if (e.touches[0]) onMove(e.touches[0].clientX, e.touches[0].clientY); }, { passive: true });
+          window.addEventListener("touchend", onEnd);
+          this.el.addEventListener("wheel", (e) => {
+            e.preventDefault();
+            this.zoom = Math.max(4.5, Math.min(12, this.zoom + (e.deltaY < 0 ? 0.35 : -0.35)));
+            this._emit("zoom");
+            this._emit("zoomend");
+          }, { passive: false });
+        }
+        MiniMap.prototype.on = function (evts, fn) {
+          evts.split(" ").forEach((ev) => {
+            this.listeners[ev] = this.listeners[ev] || [];
+            this.listeners[ev].push(fn);
+          });
+        };
+        MiniMap.prototype._emit = function (ev) {
+          (this.listeners[ev] || []).forEach((fn) => fn());
+          renderSynchronizedBaseMap();
+          if (this._syncMarkers) this._syncMarkers();
+        };
+        MiniMap.prototype.getZoom = function () { return this.zoom; };
+        MiniMap.prototype.getCenter = function () { return this.center; };
+        MiniMap.prototype.invalidateSize = function () { this._emit("resize"); };
+        MiniMap.prototype.closePopup = function () { this.popupEl.style.display = "none"; this.activePopupMarker = null; };
+        MiniMap.prototype.latLngToContainerPoint = function (ll) {
+          const lat = Array.isArray(ll) ? ll[0] : ll.lat;
+          const lng = Array.isArray(ll) ? ll[1] : ll.lng;
+          const w = this.el.clientWidth || window.innerWidth || 800;
+          const h = this.el.clientHeight || window.innerHeight || 600;
+          const scale = 256 * Math.pow(2, this.zoom);
+          const worldX = (lng + 180) / 360 * scale;
+          const sinLat = Math.sin(lat * Math.PI / 180);
+          const worldY = (0.5 - Math.log((1 + sinLat) / (1 - sinLat)) / (4 * Math.PI)) * scale;
+          const cSin = Math.sin(this.center.lat * Math.PI / 180);
+          const cWorldX = (this.center.lng + 180) / 360 * scale;
+          const cWorldY = (0.5 - Math.log((1 + cSin) / (1 - cSin)) / (4 * Math.PI)) * scale;
+          return { x: w / 2 + (worldX - cWorldX), y: h / 2 + (worldY - cWorldY) };
+        };
+        MiniMap.prototype.flyTo = function (targetLatLng, targetZoom, opts) {
+          const sLat = this.center.lat, sLng = this.center.lng, sZ = this.zoom;
+          const eLat = targetLatLng[0], eLng = targetLatLng[1], eZ = targetZoom;
+          const dur = ((opts && opts.duration) || 1.8) * 1000;
+          const t0 = performance.now();
+          const step = (now) => {
+            const p = Math.min(1, (now - t0) / dur);
+            const ease = 1 - Math.pow(1 - p, 3);
+            this.center.lat = sLat + (eLat - sLat) * ease;
+            this.center.lng = sLng + (eLng - sLng) * ease;
+            this.zoom = sZ + (eZ - sZ) * ease;
+            this._emit("move");
+            if (p < 1) requestAnimationFrame(step);
+            else { this._emit("moveend"); this._emit("zoomend"); }
+          };
+          requestAnimationFrame(step);
+        };
+        MiniMap.prototype.removeLayer = function () {};
+        return {
+          map: (id, opts) => new MiniMap(id, opts),
+          control: { zoom: () => ({ addTo: () => {} }) },
+          tileLayer: () => ({ on: () => {}, addTo: () => {} }),
+          divIcon: (o) => o,
+          layerGroup: () => {
+            const group = { layers: [], addTo: function (m) { this.map = m; return this; }, clearLayers: function () { this.layers = []; if (this.map && this.map.markerContainer) this.map.markerContainer.innerHTML = ""; } };
+            return group;
+          },
+          circle: (ll, opts) => ({ ll, opts, isCircle: true, addTo: function (g) { g.layers.push(this); return this; } }),
+          marker: (ll, opts) => {
+            const m = {
+              ll, opts, popupHtml: "",
+              bindPopup: function (html) { this.popupHtml = html; return this; },
+              on: function (ev, fn) { this.onClick = fn; return this; },
+              openPopup: function () {
+                if (!window._miniMapInstance) return;
+                const mm = window._miniMapInstance;
+                mm.activePopupMarker = this;
+                mm.popupEl.innerHTML = `<div class="leaflet-popup-content-wrapper"><a class="custom-popup-close" href="javascript:void(0)" onclick="window._miniMapInstance.closePopup()">×</a><div class="leaflet-popup-content">${this.popupHtml}</div></div>`;
+                mm.popupEl.style.display = "block";
+                mm._syncMarkers();
+              },
+              addTo: function (g) {
+                g.layers.push(this);
+                if (!window._miniMapInstance) return this;
+                const mm = window._miniMapInstance;
+                const el = document.createElement("div");
+                el.style.cssText = "position:absolute;transform:translate(-50%,-50%);pointer-events:auto;cursor:pointer;";
+                el.innerHTML = opts.icon.html;
+                el.addEventListener("click", () => { if (this.onClick) this.onClick(); });
+                this.domEl = el;
+                mm.markerContainer.appendChild(el);
+                mm._syncMarkers();
+                return this;
+              }
+            };
+            return m;
+          }
+        };
+      })();
+    }
+
+    const map = L.map("map", {
+      center: [15.2, 108.2],
+      zoom: window.innerWidth < 640 ? 5.3 : 5.6,
+      zoomSnap: 0.25,
+      zoomControl: false
+    });
+    window._miniMapInstance = map;
+
+    if (L.control && L.control.zoom) {
+      L.control.zoom({ position: "topleft" }).addTo(map);
+    }
+
+    const markersById = {};
+    const circlesById = {};
+    const markerLayerGroup = L.layerGroup().addTo(map);
+    const circleLayerGroup = L.layerGroup().addTo(map);
+
+    map._syncMarkers = function () {
+      const w = mapStageEl.clientWidth || window.innerWidth || 400;
+      const h = mapStageEl.clientHeight || window.innerHeight || 600;
+      Object.values(markersById).forEach((m) => {
+        if (m && m.domEl && m.ll) {
+          const pt = map.latLngToContainerPoint(m.ll);
+          m.domEl.style.left = pt.x + "px";
+          m.domEl.style.top = pt.y + "px";
+        }
+      });
+      if (map.activePopupMarker && map.popupEl) {
+        const pt = map.latLngToContainerPoint(map.activePopupMarker.ll);
+        const clampedX = Math.max(155, Math.min(w - 155, pt.x));
+        const clampedY = Math.max(250, Math.min(h - 45, pt.y - 18));
+        map.popupEl.style.left = clampedX + "px";
+        map.popupEl.style.top = clampedY + "px";
+      }
+    };
+
+    // Lớp ảnh Google Maps Raster (tự động ẩn mọi ô ảnh lỗi để không bao giờ che khuất bản đồ Canvas nền dưới)
+    function createSafeRasterLayer(urlTemplate) {
+      const layer = L.tileLayer(urlTemplate, {
+        subdomains: ["mt0", "mt1", "mt2", "mt3"],
+        maxZoom: 20,
+        opacity: 0.90
+      });
+      if (layer && layer.on) {
+        layer.on("tileerror", (e) => {
+          if (e && e.tile) {
+            e.tile.style.display = "none";
+          }
+        });
+      }
+      return layer;
+    }
+
+    const GOOGLE_TILES = {
+      hybrid: createSafeRasterLayer("https://{s}.google.com/vt/lyrs=y&hl=vi&x={x}&y={y}&z={z}"),
+      roadmap: createSafeRasterLayer("https://{s}.google.com/vt/lyrs=m&hl=vi&x={x}&y={y}&z={z}"),
+      terrain: createSafeRasterLayer("https://{s}.google.com/vt/lyrs=p&hl=vi&x={x}&y={y}&z={z}")
+    };
+
+    if (GOOGLE_TILES.hybrid && GOOGLE_TILES.hybrid.addTo) {
+      GOOGLE_TILES.hybrid.addTo(map);
+    }
+
+    // =========================================================================
+    // ENGINE VẼ BẢN ĐỒ ĐỊA LÝ ĐỒNG BỘ 60FPS TRÊN #gis-base-canvas
+    // =========================================================================
+    function drawPolyOnCtx(ctx, coords, closePath = true) {
+      if (!coords || coords.length === 0) return;
+      ctx.beginPath();
+      for (let i = 0; i < coords.length; i++) {
+        const p = map.latLngToContainerPoint(coords[i]);
+        if (i === 0) ctx.moveTo(p.x, p.y);
+        else ctx.lineTo(p.x, p.y);
+      }
+      if (closePath) ctx.closePath();
+    }
+
+    let activeRegionFilter = "ALL";
+    let activeHazardFilter = "ALL";
+    let activePointId = null;
+
+    function getFilteredPoints() {
+      const searchEl = document.getElementById("search-input");
+      const q = ((searchEl && searchEl.value) || "").trim().toLowerCase();
+      return WEATHER_POINTS.filter((pt) => {
+        const matchRegion = activeRegionFilter === "ALL" || pt.regionCode === activeRegionFilter;
+        const matchHazard = activeHazardFilter === "ALL" || pt.hazardCode === activeHazardFilter;
+        const matchQuery =
+          !q ||
+          pt.locationName.toLowerCase().includes(q) ||
+          pt.regionName.toLowerCase().includes(q) ||
+          pt.hazardBadge.toLowerCase().includes(q) ||
+          pt.forecastDetail.toLowerCase().includes(q);
+        return matchRegion && matchHazard && matchQuery;
+      });
+    }
+
+    function renderSynchronizedBaseMap() {
+      if (!gisCanvas || !mapStageEl) return;
+      const w = mapStageEl.clientWidth || window.innerWidth || 800;
+      const h = mapStageEl.clientHeight || window.innerHeight || 600;
+      if (gisCanvas.width !== w || gisCanvas.height !== h) {
+        gisCanvas.width = w;
+        gisCanvas.height = h;
+      }
+
+      const ctx = gisCtx;
+      const z = map.getZoom() || 5.5;
+      const mode = currentTileMode || "hybrid";
+      const isLight = mode === "roadmap";
+
+      // 1. NỀN ĐẠI DƯƠNG (BIỂN ĐÔNG, VỊNH BẮC BỘ, VỊNH THÁI LAN)
+      const seaGrad = ctx.createRadialGradient(w * 0.55, h * 0.45, 20, w * 0.55, h * 0.45, Math.max(w, h) * 0.85);
+      if (isLight) {
+        seaGrad.addColorStop(0, "#93c5fd");
+        seaGrad.addColorStop(1, "#60a5fa");
+      } else if (mode === "terrain") {
+        seaGrad.addColorStop(0, "#1d6fa5");
+        seaGrad.addColorStop(1, "#0d3b66");
+      } else {
+        seaGrad.addColorStop(0, "#16649c");
+        seaGrad.addColorStop(0.6, "#0e4775");
+        seaGrad.addColorStop(1, "#082d4f");
+      }
+      ctx.fillStyle = seaGrad;
+      ctx.fillRect(0, 0, w, h);
+
+      // 2. VÙNG THỀM LỤC ĐỊA NÔNG VEN BỜ VIỆT NAM & QUẦN ĐẢO
+      drawPolyOnCtx(ctx, [
+        [22.0, 106.0], [20.2, 111.2], [15.5, 110.8], [10.0, 110.2],
+        [7.2, 106.2], [9.5, 103.2], [14.0, 106.0], [22.0, 106.0]
+      ], true);
+      ctx.fillStyle = isLight ? "rgba(186, 230, 253, 0.55)" : "rgba(56, 189, 248, 0.16)";
+      ctx.fill();
+
+      // 3. LƯỚI KINH TUYẾN & VĨ TUYẾN ĐỊA LÝ (GRATICULES)
+      ctx.strokeStyle = isLight ? "rgba(71, 85, 105, 0.18)" : "rgba(125, 211, 252, 0.16)";
+      ctx.lineWidth = 1;
+      const gridStep = z >= 8 ? 0.5 : z >= 6.5 ? 1.0 : 2.0;
+      for (let lat = 6; lat <= 25; lat += gridStep) {
+        const p1 = map.latLngToContainerPoint([lat, 98]);
+        const p2 = map.latLngToContainerPoint([lat, 118]);
+        if (p1.y >= -20 && p1.y <= h + 20) {
+          ctx.beginPath();
+          ctx.moveTo(0, p1.y);
+          ctx.lineTo(w, p2.y);
+          ctx.stroke();
+          ctx.fillStyle = isLight ? "rgba(51, 65, 85, 0.6)" : "rgba(148, 163, 184, 0.55)";
+          ctx.font = "600 9.5px 'JetBrains Mono', monospace";
+          ctx.fillText(`${lat.toFixed(gridStep < 1 ? 1 : 0)}°N`, 8, p1.y - 3);
+        }
+      }
+      for (let lng = 100; lng <= 118; lng += gridStep) {
+        const p1 = map.latLngToContainerPoint([25, lng]);
+        const p2 = map.latLngToContainerPoint([6, lng]);
+        if (p1.x >= -20 && p1.x <= w + 20) {
+          ctx.beginPath();
+          ctx.moveTo(p1.x, 0);
+          ctx.lineTo(p2.x, h);
+          ctx.stroke();
+          ctx.fillStyle = isLight ? "rgba(51, 65, 85, 0.6)" : "rgba(148, 163, 184, 0.55)";
+          ctx.font = "600 9.5px 'JetBrains Mono', monospace";
+          ctx.fillText(`${lng.toFixed(gridStep < 1 ? 1 : 0)}°E`, p1.x + 4, h - 48);
+        }
+      }
+
+      // 4. LỤC ĐỊA LÂN CẬN (LÀO, CAMPUCHIA, THÁI LAN, NAM TRUNG QUỐC & ĐẢO HẢI NAM)
+      drawPolyOnCtx(ctx, NEIGHBOR_MASS_WEST, true);
+      ctx.fillStyle = isLight ? "#e2e8f0" : mode === "terrain" ? "#263e29" : "#18392b";
+      ctx.fill();
+      ctx.strokeStyle = isLight ? "#94a3b8" : "rgba(148, 163, 184, 0.35)";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      drawPolyOnCtx(ctx, HAINAN_ISLAND, true);
+      ctx.fill();
+      ctx.stroke();
+
+      // 5. LÃNH THỔ ĐẤT LIỀN VIỆT NAM & 7 PHÂN VÙNG ĐỊA HÌNH RÕ NÉT
+      drawPolyOnCtx(ctx, VN_MAINLAND_COORDS, true);
+      ctx.fillStyle = isLight ? "#f8fafc" : mode === "terrain" ? "#3b6e38" : "#236942";
+      ctx.fill();
+
+      VN_REGIONS_POLYS.forEach((reg) => {
+        drawPolyOnCtx(ctx, reg.coords, true);
+        ctx.fillStyle = isLight ? reg.fillRoadmap : mode === "terrain" ? reg.fillTerrain : reg.fillHybrid;
+        ctx.fill();
+        ctx.save();
+        ctx.setLineDash([4, 4]);
+        ctx.strokeStyle = isLight ? "rgba(100, 116, 139, 0.5)" : "rgba(255, 255, 255, 0.28)";
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+        ctx.restore();
+      });
+
+      drawPolyOnCtx(ctx, PHU_QUOC_ISLAND, true);
+      ctx.fillStyle = isLight ? "#f8fafc" : "#27794b";
+      ctx.fill();
+      ctx.strokeStyle = isLight ? "#0284c7" : "#38bdf8";
+      ctx.lineWidth = 1.8;
+      ctx.stroke();
+
+      drawPolyOnCtx(ctx, VN_MAINLAND_COORDS, true);
+      ctx.strokeStyle = isLight ? "#0f172a" : "#7dd3fc";
+      ctx.lineWidth = 2.4;
+      ctx.stroke();
+
+      // 6. VÒNG ĐỒNG MỨC ĐỊA HÌNH ĐỒI NÚI
+      const mountainCenters = [
+        [22.3, 103.8, 0.85], [21.5, 103.4, 0.75], [19.2, 104.6, 0.65],
+        [16.2, 107.3, 0.65], [14.6, 108.0, 0.80], [13.9, 108.1, 0.75],
+        [12.7, 108.2, 0.85], [11.9, 108.4, 0.80], [11.6, 107.8, 0.70]
+      ];
+      mountainCenters.forEach(([mlat, mlng, rad]) => {
+        const pCenter = map.latLngToContainerPoint([mlat, mlng]);
+        const pEdge = map.latLngToContainerPoint([mlat + rad, mlng]);
+        const rPx = Math.max(12, Math.abs(pCenter.y - pEdge.y));
+        if (pCenter.x > -rPx && pCenter.x < w + rPx && pCenter.y > -rPx && pCenter.y < h + rPx) {
+          const mGrad = ctx.createRadialGradient(pCenter.x, pCenter.y, rPx * 0.1, pCenter.x, pCenter.y, rPx);
+          if (mode === "terrain") {
+            mGrad.addColorStop(0, "rgba(194, 110, 56, 0.55)");
+            mGrad.addColorStop(0.6, "rgba(132, 169, 60, 0.30)");
+            mGrad.addColorStop(1, "rgba(0, 0, 0, 0)");
+          } else if (isLight) {
+            mGrad.addColorStop(0, "rgba(134, 239, 172, 0.45)");
+            mGrad.addColorStop(1, "rgba(255, 255, 255, 0)");
+          } else {
+            mGrad.addColorStop(0, "rgba(132, 165, 68, 0.42)");
+            mGrad.addColorStop(1, "rgba(0, 0, 0, 0)");
+          }
+          ctx.fillStyle = mGrad;
+          ctx.beginPath();
+          ctx.arc(pCenter.x, pCenter.y, rPx, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      });
+
+      // 7. HỆ THỐNG 19 SÔNG LỚN VIỆT NAM
+      ctx.strokeStyle = isLight ? "#0284c7" : "#38bdf8";
+      ctx.lineWidth = z >= 8 ? 2.4 : 1.7;
+      ctx.lineCap = "round";
+      MAJOR_RIVERS.forEach((riverCoords) => {
+        drawPolyOnCtx(ctx, riverCoords, false);
+        ctx.stroke();
+      });
+
+      // 8. MẠNG LƯỚI ĐƯỜNG ĐÔ THỊ & ĐƯỜNG LIÊN HUYỆN KHI ZOOM GẦN
+      if (z >= 6.8) {
+        PROVINCE_LABELS.forEach((pl) => {
+          const cp = map.latLngToContainerPoint([pl.lat, pl.lng]);
+          if (cp.x < -80 || cp.x > w + 80 || cp.y < -80 || cp.y > h + 80) return;
+
+          const cityRad = pl.major ? (z >= 8.2 ? 38 : 22) : (z >= 8.2 ? 24 : 14);
+          ctx.fillStyle = isLight ? "rgba(254, 240, 138, 0.55)" : "rgba(250, 204, 21, 0.16)";
+          ctx.beginPath();
+          ctx.arc(cp.x, cp.y, cityRad, 0, Math.PI * 2);
+          ctx.fill();
+
+          if (z >= 7.2) {
+            ctx.strokeStyle = isLight ? "rgba(148, 163, 184, 0.65)" : "rgba(253, 224, 71, 0.35)";
+            ctx.lineWidth = 1.1;
+            ctx.beginPath();
+            ctx.arc(cp.x, cp.y, cityRad * 0.75, 0, Math.PI * 2);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(cp.x - cityRad * 1.35, cp.y);
+            ctx.lineTo(cp.x + cityRad * 1.35, cp.y);
+            ctx.moveTo(cp.x, cp.y - cityRad * 1.35);
+            ctx.lineTo(cp.x, cp.y + cityRad * 1.35);
+            ctx.moveTo(cp.x - cityRad * 0.95, cp.y - cityRad * 0.95);
+            ctx.lineTo(cp.x + cityRad * 0.95, cp.y + cityRad * 0.95);
+            ctx.moveTo(cp.x - cityRad * 0.95, cp.y + cityRad * 0.95);
+            ctx.lineTo(cp.x + cityRad * 0.95, cp.y - cityRad * 0.95);
+            ctx.stroke();
+          }
+        });
+      }
+
+      // 9. HỆ THỐNG QUỐC LỘ & CAO TỐC CHUẨN GOOGLE MAPS
+      HIGHWAYS.forEach((hw) => {
+        drawPolyOnCtx(ctx, hw.coords, false);
+        ctx.strokeStyle = isLight ? "#b45309" : "#78350f";
+        ctx.lineWidth = z >= 8 ? 4.2 : 3.0;
+        ctx.stroke();
+
+        drawPolyOnCtx(ctx, hw.coords, false);
+        ctx.strokeStyle = isLight ? "#f59e0b" : "#facc15";
+        ctx.lineWidth = z >= 8 ? 2.4 : 1.7;
+        ctx.stroke();
+
+        if (z >= 6.0 && hw.badgePos) {
+          const bp = map.latLngToContainerPoint(hw.badgePos);
+          if (bp.x > 20 && bp.x < w - 20 && bp.y > 20 && bp.y < h - 20) {
+            ctx.fillStyle = "#facc15";
+            ctx.strokeStyle = "#0f172a";
+            ctx.lineWidth = 1.2;
+            ctx.fillRect(bp.x - 16, bp.y - 7, 32, 14);
+            ctx.strokeRect(bp.x - 16, bp.y - 7, 32, 14);
+            ctx.fillStyle = "#0f172a";
+            ctx.font = "800 8.5px 'Inter', sans-serif";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText(hw.code, bp.x, bp.y);
+          }
+        }
+      });
+
+      // 10. VÙNG BÁN KÍNH CẢNH BÁO THỜI TIẾT CỰC ĐOAN (VẼ TRÊN CANVAS ĐỂ LUÔN HIỂN THỊ RÕ)
+      const activePoints = getFilteredPoints();
+      activePoints.forEach((pt) => {
+        const centerPx = map.latLngToContainerPoint([pt.lat, pt.lng]);
+        const edgeLat = pt.lat + (pt.radiusMeters / 111320);
+        const edgePx = map.latLngToContainerPoint([edgeLat, pt.lng]);
+        const radPx = Math.max(14, Math.abs(centerPx.y - edgePx.y));
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(centerPx.x, centerPx.y, radPx, 0, Math.PI * 2);
+        ctx.fillStyle = pt.colorHex + "2e";
+        ctx.fill();
+        if (pt.hazardCode === "MARINE_STORM") {
+          ctx.setLineDash([5, 5]);
+        }
+        ctx.strokeStyle = pt.colorHex;
+        ctx.lineWidth = activePointId === pt.id ? 2.6 : 1.6;
+        ctx.stroke();
+        ctx.restore();
+      });
+
+      // 11. QUẦN ĐẢO HOÀNG SA & TRƯỜNG SA (VIỆT NAM)
+      ARCHIPELAGOS.forEach((isl) => {
+        const ip = map.latLngToContainerPoint([isl.lat, isl.lng]);
+        if (ip.x < -120 || ip.x > w + 120 || ip.y < -40 || ip.y > h + 40) return;
+
+        ctx.beginPath();
+        ctx.arc(ip.x, ip.y, isl.major ? 16 : 7, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(56, 189, 248, 0.25)";
+        ctx.fill();
+        ctx.strokeStyle = "rgba(56, 189, 248, 0.65)";
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.arc(ip.x, ip.y, isl.major ? 4.5 : 3, 0, Math.PI * 2);
+        ctx.fillStyle = "#f59e0b";
+        ctx.fill();
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        ctx.font = isl.major ? "800 10px 'Inter', sans-serif" : "700 9px 'Inter', sans-serif";
+        ctx.textAlign = "left";
+        ctx.textBaseline = "middle";
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = isLight ? "#ffffff" : "rgba(6, 16, 30, 0.95)";
+        ctx.strokeText(`🏝️ ${isl.name}`, ip.x + 8, ip.y);
+        ctx.fillStyle = isLight ? "#b45309" : "#fde047";
+        ctx.fillText(`🏝️ ${isl.name}`, ip.x + 8, ip.y);
+      });
+
+      // 12. NHÃN BIỂN ĐÔNG & QUỐC GIA LÂN CẬN
+      const seaAndCountryLabels = [
+        { text: "BIỂN ĐÔNG (VIỆT NAM)", lat: 14.2, lng: 112.0, sea: true },
+        { text: "VỊNH BẮC BỘ", lat: 19.6, lng: 107.5, sea: true },
+        { text: "VỊNH THÁI LAN", lat: 9.2, lng: 103.2, sea: true },
+        { text: "LÀO", lat: 18.2, lng: 103.5, sea: false },
+        { text: "CAMPUCHIA", lat: 12.8, lng: 105.0, sea: false },
+        { text: "THÁI LAN", lat: 15.5, lng: 101.8, sea: false }
+      ];
+      seaAndCountryLabels.forEach((lbl) => {
+        const lp = map.latLngToContainerPoint([lbl.lat, lbl.lng]);
+        if (lp.x < -80 || lp.x > w + 80 || lp.y < -30 || lp.y > h + 30) return;
+        ctx.font = lbl.sea ? "italic 800 11px 'Inter', sans-serif" : "800 11px 'Inter', sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = isLight ? "rgba(255,255,255,0.9)" : "rgba(6, 16, 30, 0.9)";
+        ctx.strokeText(lbl.text, lp.x, lp.y);
+        ctx.fillStyle = lbl.sea
+          ? (isLight ? "#0369a1" : "#7dd3fc")
+          : (isLight ? "#475569" : "rgba(226, 232, 240, 0.75)");
+        ctx.fillText(lbl.text, lp.x, lp.y);
+      });
+
+      // 13. NHÃN 63 TỈNH/THÀNH & 85+ HUYỆN/THỊ XÃ/ĐÈO/HỒ CHỨA THEO MỨC ZOOM
+      PROVINCE_LABELS.forEach((p) => {
+        if (z < p.minZoom) return;
+        const pp = map.latLngToContainerPoint([p.lat, p.lng]);
+        if (pp.x < -60 || pp.x > w + 60 || pp.y < -20 || pp.y > h + 20) return;
+
+        ctx.beginPath();
+        ctx.arc(pp.x, pp.y, p.major ? 3.2 : p.district ? 2.0 : 2.5, 0, Math.PI * 2);
+        ctx.fillStyle = p.major ? "#facc15" : isLight ? "#0f172a" : "#e2e8f0";
+        ctx.fill();
+
+        ctx.font = p.major
+          ? "800 10.5px 'Inter', sans-serif"
+          : p.district
+          ? "600 9.5px 'Inter', sans-serif"
+          : "700 10px 'Inter', sans-serif";
+        ctx.textAlign = "left";
+        ctx.textBaseline = "middle";
+        ctx.lineWidth = 2.8;
+        ctx.strokeStyle = isLight ? "rgba(255,255,255,0.95)" : "rgba(6, 16, 30, 0.95)";
+        ctx.strokeText(p.name, pp.x + 5, pp.y);
+        ctx.fillStyle = isLight
+          ? (p.major ? "#0f172a" : "#1e293b")
+          : (p.major ? "#ffffff" : p.district ? "#cbd5e1" : "#f1f5f9");
+        ctx.fillText(p.name, pp.x + 5, pp.y);
+      });
+    }
+
+    map.on("move zoom viewreset resize moveend zoomend", () => {
+      renderSynchronizedBaseMap();
+    });
+
+    if (window.ResizeObserver && mapStageEl) {
+      const ro = new ResizeObserver(() => {
+        map.invalidateSize({ animate: false });
+        renderSynchronizedBaseMap();
+        resizeWindCanvas();
+      });
+      ro.observe(mapStageEl);
+    }
+    window.addEventListener("resize", () => {
+      map.invalidateSize({ animate: false });
+      renderSynchronizedBaseMap();
+      resizeWindCanvas();
+    });
+
+    // =========================================================================
+    // HIỆU ỨNG DÒNG GIÓ KHÍ TƯỢNG ĐỘNG (NHƯ WINDY.COM) TRÊN NỀN BẢN ĐỒ
+    // =========================================================================
+    const windCanvas = document.getElementById("wind-canvas");
+    const windCtx = windCanvas.getContext("2d");
+    const windParticles = [];
+    const PARTICLE_COUNT = 55;
+
+    function resizeWindCanvas() {
+      if (!windCanvas || !mapStageEl) return;
+      windCanvas.width = mapStageEl.clientWidth || window.innerWidth || 800;
+      windCanvas.height = mapStageEl.clientHeight || window.innerHeight || 600;
+    }
+
+    function initWindParticles() {
+      resizeWindCanvas();
+      windParticles.length = 0;
+      for (let i = 0; i < PARTICLE_COUNT; i++) {
+        windParticles.push({
+          x: Math.random() * windCanvas.width,
+          y: Math.random() * windCanvas.height,
+          speed: 0.75 + Math.random() * 1.15,
+          alpha: 0.25 + Math.random() * 0.40
+        });
+      }
+    }
+
+    function animateWind() {
+      if (windCanvas.width > 0 && windCanvas.height > 0) {
+        windCtx.clearRect(0, 0, windCanvas.width, windCanvas.height);
+        const strokeRgb = currentTileMode === "roadmap" ? "2, 132, 199" : "186, 230, 253";
+        windParticles.forEach((p) => {
+          const vx = -p.speed * 1.15;
+          const vy = p.speed * 0.45 + Math.sin(p.x * 0.015) * 0.25;
+          windCtx.beginPath();
+          windCtx.strokeStyle = `rgba(${strokeRgb}, ${p.alpha})`;
+          windCtx.lineWidth = 1.4;
+          windCtx.moveTo(p.x, p.y);
+          windCtx.lineTo(p.x - vx * 9, p.y - vy * 9);
+          windCtx.stroke();
+
+          p.x += vx;
+          p.y += vy;
+          if (p.x < 0) p.x = windCanvas.width;
+          if (p.y > windCanvas.height) p.y = 0;
+        });
+      }
+      requestAnimationFrame(animateWind);
+    }
+
+    // =========================================================================
+    // MARKER CẢNH BÁO & POPUP BẢNG THÔNG TIN CHUYÊN NGHIỆP
+    // =========================================================================
+    let autoTourTimer = null;
+    let autoTourIndex = 0;
+    let isAutoTourRunning = false;
+    let cameraAnimTimeouts = [];
+    let isMobileDrawerOpen = false;
+
+    function setMobileDrawerOpen(open) {
+      isMobileDrawerOpen = Boolean(open);
+      const drawer = document.getElementById("sidebar-drawer");
+      const chevron = document.getElementById("drawer-chevron");
+      if (!drawer) return;
+      if (isMobileDrawerOpen) {
+        drawer.classList.add("mobile-expanded");
+        if (chevron) chevron.textContent = "🔽";
+      } else {
+        drawer.classList.remove("mobile-expanded");
+        if (chevron) chevron.textContent = "🔼";
+      }
+      setTimeout(() => {
+        map.invalidateSize({ animate: false });
+        renderSynchronizedBaseMap();
+      }, 340);
+    }
+
+    document.getElementById("btn-mobile-drawer-toggle").addEventListener("click", (e) => {
+      e.stopPropagation();
+      setMobileDrawerOpen(!isMobileDrawerOpen);
+    });
+
+    document.getElementById("drawer-header-bar").addEventListener("click", (e) => {
+      if (e.target && e.target.id === "search-input") return;
+      if (window.innerWidth < 1024) {
+        setMobileDrawerOpen(!isMobileDrawerOpen);
+      }
+    });
+
+    document.getElementById("search-box-wrap").addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (window.innerWidth < 1024 && !isMobileDrawerOpen) {
+        setMobileDrawerOpen(true);
+      }
+    });
+
+    function buildPopupHtml(pt) {
+      return `
+        <div class="weather-popup-card">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;padding-bottom:6px;margin-bottom:6px;border-bottom:1px solid #334155;padding-right:22px;">
+            <span style="padding:2px 6px;border-radius:4px;font-size:9.5px;font-weight:800;text-transform:uppercase;background:${pt.colorHex}25;color:${pt.colorHex};border:1px solid ${pt.colorHex}77;">
+              ${pt.iconEmoji} ${pt.hazardBadge}
+            </span>
+            <span class="font-mono-code" style="font-size:9.5px;color:#94a3b8;white-space:nowrap;">${pt.timestamp.replace(" (GMT+7)", "")}</span>
+          </div>
+
+          <h3 style="font-size:13px;font-weight:800;color:#ffffff;margin:0 0 3px 0;line-height:1.3;">
+            ${pt.locationName}
+          </h3>
+          <div class="font-mono-code" style="display:flex;align-items:center;justify-content:space-between;font-size:10px;color:#38bdf8;margin-bottom:7px;">
+            <span>📍 GPS: ${pt.lat.toFixed(4)}, ${pt.lng.toFixed(4)}</span>
+            <span style="color:#cbd5e1;font-family:'Inter',sans-serif;font-weight:600;">${pt.regionName}</span>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:7px;font-size:10.5px;">
+            <div style="background:#0f172a;border:1px solid #334155;border-radius:7px;padding:5px 7px;">
+              <div style="font-size:9px;color:#94a3b8;">Hiện tại / Dự báo</div>
+              <div style="font-weight:700;color:#fcd34d;">${pt.currentTemp}</div>
+              <div style="font-size:9.5px;color:#cbd5e1;">Khung: ${pt.forecastTemp}</div>
+            </div>
+            <div style="background:#0f172a;border:1px solid #334155;border-radius:7px;padding:5px 7px;">
+              <div style="font-size:9px;color:#94a3b8;">Mưa / Gió / Sóng</div>
+              <div style="font-weight:700;color:#67e8f9;">${pt.rainfallWind}</div>
+              <div style="font-size:9.5px;color:#fca5a5;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${pt.severityLevel}</div>
+            </div>
+          </div>
+
+          <div style="background:rgba(15,23,42,0.9);border:1px solid #1e293b;border-radius:7px;padding:6px 8px;margin-bottom:7px;font-size:11px;max-height:110px;overflow-y:auto;line-height:1.4;">
+            <div style="margin-bottom:4px;">
+              <strong style="color:#7dd3fc;">Hiện trạng:</strong>
+              <span> ${pt.currentSummary}</span>
+            </div>
+            <div>
+              <strong style="color:#fcd34d;">Dự báo &amp; Cảnh báo:</strong>
+              <span> ${pt.forecastDetail}</span>
+            </div>
+          </div>
+
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:10px;padding-top:4px;border-top:1px solid #334155;">
+            <button type="button" data-speak-id="${pt.id}" style="background:rgba(239,68,68,0.25);color:#fca5a5;border:1px solid #ef4444;padding:3px 8px;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer;">
+              🎙️ Nghe TV đọc điểm này
+            </button>
+            <a href="${pt.sourceUrl}" target="_blank" rel="noopener noreferrer"
+               style="color:#38bdf8;font-weight:700;text-decoration:underline;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px;">
+              🔗 Nguồn: ${pt.sourceName} ↗
+            </a>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderMapMarkers(points) {
+      markerLayerGroup.clearLayers();
+      circleLayerGroup.clearLayers();
+
+      points.forEach((pt) => {
+        const circle = L.circle([pt.lat, pt.lng], {
+          radius: pt.radiusMeters,
+          color: pt.colorHex,
+          weight: 2.0,
+          opacity: 0.85,
+          fillColor: pt.colorHex,
+          fillOpacity: 0.20,
+          dashArray: pt.hazardCode === "MARINE_STORM" ? "6, 6" : null
+        }).addTo(circleLayerGroup);
+
+        const iconHtml = `
+          <div class="hazard-marker-wrap" style="width:32px;height:32px;color:${pt.colorHex};">
+            <div class="hazard-pulse-ring" style="width:30px;height:30px;background:${pt.colorHex}55;border:1.5px solid ${pt.colorHex};"></div>
+            <div class="hazard-pulse-ring-2" style="width:30px;height:30px;background:${pt.colorHex}33;border:1px solid ${pt.colorHex};"></div>
+            <div class="hazard-core" style="width:26px;height:26px;background:${pt.colorHex};">
+              <span>${pt.iconEmoji}</span>
+            </div>
+            <div class="hazard-label-tag">${pt.shortLabel}</div>
+          </div>
+        `;
+
+        const customIcon = L.divIcon({
+          html: iconHtml,
+          className: "custom-weather-div-icon",
+          iconSize: [32, 32],
+          iconAnchor: [16, 16],
+          popupAnchor: [0, -14]
+        });
+
+        const marker = L.marker([pt.lat, pt.lng], { icon: customIcon }).addTo(markerLayerGroup);
+        marker.bindPopup(buildPopupHtml(pt), {
+          maxWidth: 340,
+          autoPan: true,
+          autoPanPaddingTopLeft: [12, 55],
+          autoPanPaddingBottomRight: [12, 50]
+        });
+
+        marker.on("click", () => {
+          if (window.innerWidth < 1024) setMobileDrawerOpen(false);
+          flyCameraHighToLow(pt.id, false);
+        });
+
+        markersById[pt.id] = marker;
+        circlesById[pt.id] = circle;
+      });
+    }
+
+    // =========================================================================
+    // HOẠT CẢNH CAMERA ZOOM: TỪ XA ĐẾN GẦN, TỪ CAO XUỐNG THẤP + BẬT POPUP
+    // =========================================================================
+    function clearCameraTimers() {
+      cameraAnimTimeouts.forEach((t) => clearTimeout(t));
+      cameraAnimTimeouts = [];
+    }
+
+    function updateAltitudeHud(zoomVal, statusText, statusColorHex) {
+      const z = Number(zoomVal) || 5.5;
+      const altitudeKm = Math.max(8, Math.round(38000 / Math.pow(2, z - 1)));
+      const altEl = document.getElementById("hud-altitude");
+      const zoomEl = document.getElementById("hud-zoom-level");
+      const stateEl = document.getElementById("hud-camera-state");
+
+      if (altEl) altEl.textContent = altitudeKm.toLocaleString("vi-VN") + " km";
+      if (zoomEl) zoomEl.textContent = `(Zoom ${z.toFixed(1)})`;
+      if (stateEl && statusText) {
+        stateEl.style.color = statusColorHex || "#34d399";
+        stateEl.textContent = statusText;
+      }
+    }
+
+    map.on("zoomend", () => {
+      updateAltitudeHud(map.getZoom(), null, null);
+      renderSynchronizedBaseMap();
+    });
+
+    function updateTelemetryPanel(pt) {
+      const badgeEl = document.getElementById("tele-badge");
+      const titleEl = document.getElementById("tele-title");
+      const gpsEl = document.getElementById("tele-gps");
+      const tempEl = document.getElementById("tele-temp");
+      const rainEl = document.getElementById("tele-rain");
+      const descEl = document.getElementById("tele-desc");
+
+      if (!badgeEl) return;
+      badgeEl.textContent = `${pt.iconEmoji} ${pt.hazardBadge}`;
+      badgeEl.style.backgroundColor = `${pt.colorHex}25`;
+      badgeEl.style.color = pt.colorHex;
+      badgeEl.style.borderColor = `${pt.colorHex}66`;
+
+      titleEl.textContent = pt.locationName;
+      gpsEl.textContent = `GPS: ${pt.lat.toFixed(4)}, ${pt.lng.toFixed(4)} • ${pt.timestamp}`;
+      tempEl.textContent = `${pt.currentTemp} (${pt.forecastTemp})`;
+      rainEl.textContent = pt.rainfallWind;
+      descEl.textContent = `${pt.currentSummary} ${pt.forecastDetail}`;
+    }
+
+    // TUYỆT ĐỐI KHÔNG DÙNG el.scrollIntoView() VÌ SẼ CUỘN KHUNG FLEX TRÊN MOBILE LÀM MẤT BẢN ĐỒ
+    function highlightSidebarCard(id) {
+      const listEl = document.getElementById("locations-list");
+      document.querySelectorAll(".location-card").forEach((el) => {
+        if (Number(el.dataset.id) === Number(id)) {
+          el.classList.add("active-card");
+          if (listEl && (window.innerWidth >= 1024 || isMobileDrawerOpen)) {
+            listEl.scrollTop = Math.max(0, el.offsetTop - listEl.offsetTop - 24);
+          }
+        } else {
+          el.classList.remove("active-card");
+        }
+      });
+    }
+
+    function flyCameraHighToLow(pointId, forceTwoStage = true) {
+      const pt = WEATHER_POINTS.find((item) => item.id === Number(pointId));
+      if (!pt) return;
+
+      if (window.innerWidth < 1024 && isMobileDrawerOpen) {
+        setMobileDrawerOpen(false);
+      }
+
+      map.invalidateSize({ animate: false });
+      clearCameraTimers();
+      activePointId = pt.id;
+      highlightSidebarCard(pt.id);
+      updateTelemetryPanel(pt);
+
+      const mapEl = document.getElementById("map");
+      const crosshairEl = document.getElementById("hud-crosshair");
+      const crosshairLabel = document.getElementById("crosshair-label");
+      const chkEl = document.getElementById("chk-high-to-low");
+      const useTwoStage = forceTwoStage || (chkEl && chkEl.checked);
+
+      map.closePopup();
+
+      const currentZoom = map.getZoom();
+      const isMobile = window.innerWidth < 640;
+      const finalZoom = isMobile ? Math.min(pt.targetZoom, 7.6) : Math.min(pt.targetZoom, 8.2);
+      // Dịch tâm nhẹ lên phía Bắc để khi Popup bung ra trên điện thoại luôn nằm chính giữa màn hình
+      const latOffset = isMobile ? 0.42 : 0.25;
+
+      if (useTwoStage && currentZoom > 6.4) {
+        mapEl.classList.remove("camera-diving", "camera-low-locked");
+        mapEl.classList.add("camera-high-altitude");
+        crosshairEl.classList.remove("opacity-0");
+        crosshairLabel.textContent = `NÂNG ĐỘ CAO ➔ KHÓA TỌA ĐỘ: ${pt.shortLabel.toUpperCase()}`;
+        updateAltitudeHud(5.5, `Nâng độ cao ➔ ${pt.shortLabel}`, "#fcd34d");
+
+        map.flyTo([(map.getCenter().lat + pt.lat) / 2, (map.getCenter().lng + pt.lng) / 2], 5.5, {
+          animate: true,
+          duration: 1.0,
+          easeLinearity: 0.25
+        });
+
+        const t1 = setTimeout(() => {
+          mapEl.classList.remove("camera-high-altitude", "camera-low-locked");
+          mapEl.classList.add("camera-diving");
+          crosshairLabel.textContent = `ZOOM CẬN CẢNH (${pt.lat.toFixed(2)}, ${pt.lng.toFixed(2)})...`;
+          updateAltitudeHud(finalZoom, `Zoom cận cảnh ➔ ${pt.shortLabel}`, "#38bdf8");
+
+          map.flyTo([pt.lat + latOffset, pt.lng], finalZoom, {
+            animate: true,
+            duration: 1.85,
+            easeLinearity: 0.15
+          });
+        }, 1050);
+
+        const t2 = setTimeout(() => {
+          mapEl.classList.remove("camera-high-altitude", "camera-diving");
+          mapEl.classList.add("camera-low-locked");
+          crosshairEl.classList.add("opacity-0");
+          updateAltitudeHud(finalZoom, `Đã khóa: ${pt.shortLabel}`, "#34d399");
+          renderSynchronizedBaseMap();
+          const marker = markersById[pt.id];
+          if (marker) {
+            marker.openPopup();
+          }
+        }, 3000);
+
+        cameraAnimTimeouts.push(t1, t2);
+      } else {
+        mapEl.classList.remove("camera-high-altitude", "camera-low-locked");
+        mapEl.classList.add("camera-diving");
+        crosshairEl.classList.remove("opacity-0");
+        crosshairLabel.textContent = `ZOOM TỪ XA ĐẾN GẦN ➔ ${pt.shortLabel.toUpperCase()}`;
+        updateAltitudeHud(finalZoom, `Đang hạ độ cao ➔ ${pt.shortLabel}`, "#38bdf8");
+
+        map.flyTo([pt.lat + latOffset, pt.lng], finalZoom, {
+          animate: true,
+          duration: 1.9,
+          easeLinearity: 0.16
+        });
+
+        const tOpen = setTimeout(() => {
+          mapEl.classList.remove("camera-high-altitude", "camera-diving");
+          mapEl.classList.add("camera-low-locked");
+          crosshairEl.classList.add("opacity-0");
+          updateAltitudeHud(finalZoom, `Đã khóa: ${pt.shortLabel}`, "#34d399");
+          renderSynchronizedBaseMap();
+          const marker = markersById[pt.id];
+          if (marker) {
+            marker.openPopup();
+          }
+        }, 2000);
+
+        cameraAnimTimeouts.push(tOpen);
+      }
+    }
+
+    // =========================================================================
+    // DANH SÁCH SIDEBAR & BỘ LỌC
+    // =========================================================================
+    function updateDynamicRegionCounts() {
+      const counts = {
+        ALL: WEATHER_POINTS.length,
+        BAC_BO: WEATHER_POINTS.filter((p) => p.regionCode === "BAC_BO").length,
+        MIEN_TRUNG: WEATHER_POINTS.filter((p) => p.regionCode === "MIEN_TRUNG").length,
+        TAY_NGUYEN: WEATHER_POINTS.filter((p) => p.regionCode === "TAY_NGUYEN").length,
+        NAM_BO: WEATHER_POINTS.filter((p) => p.regionCode === "NAM_BO").length,
+        BIEN_DONG: WEATHER_POINTS.filter((p) => p.regionCode === "BIEN_DONG").length
+      };
+      const labels = {
+        ALL: `Tất cả (${counts.ALL})`,
+        BAC_BO: `Bắc Bộ (${counts.BAC_BO})`,
+        MIEN_TRUNG: `Miền Trung (${counts.MIEN_TRUNG})`,
+        TAY_NGUYEN: `Tây Nguyên (${counts.TAY_NGUYEN})`,
+        NAM_BO: `Nam Bộ (${counts.NAM_BO})`,
+        BIEN_DONG: `Biển Đông & ATNĐ/Bão (${counts.BIEN_DONG})`
+      };
+      document.querySelectorAll(".region-btn").forEach((btn) => {
+        const rc = btn.dataset.region;
+        if (rc && labels[rc]) {
+          btn.textContent = labels[rc];
+        }
+      });
+    }
+
+    function renderSidebarAndTable() {
+      updateDynamicRegionCounts();
+      const filtered = getFilteredPoints();
+      document.getElementById("point-count-badge").textContent = String(filtered.length);
+
+      renderMapMarkers(filtered);
+      renderSynchronizedBaseMap();
+
+      const listEl = document.getElementById("locations-list");
+      listEl.innerHTML = "";
+
+      if (filtered.length === 0) {
+        listEl.innerHTML = `
+          <div style="padding:14px;text-align:center;font-size:12px;color:#94a3b8;background:#0f172a;border-radius:10px;border:1px solid #1e293b;">
+            Không tìm thấy địa danh phù hợp. Hãy chọn "Tất cả (14)" để xem toàn bộ vùng cảnh báo.
+          </div>
+        `;
+      } else {
+        filtered.forEach((pt) => {
+          const card = document.createElement("div");
+          card.dataset.id = pt.id;
+          card.className = `location-card ${activePointId === pt.id ? "active-card" : ""}`;
+          card.innerHTML = `
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:4px;">
+              <span style="padding:2px 6px;border-radius:4px;font-size:9.5px;font-weight:800;background:${pt.colorHex}22;color:${pt.colorHex};border:1px solid ${pt.colorHex}66;">
+                ${pt.iconEmoji} ${pt.hazardBadge}
+              </span>
+              <span class="font-mono-code" style="font-size:10px;color:#94a3b8;">${pt.regionName}</span>
+            </div>
+            <div style="font-size:12px;font-weight:700;color:#ffffff;margin-bottom:2px;display:flex;align-items:center;justify-content:space-between;">
+              <span>${pt.id}. ${pt.locationName}</span>
+              <span class="font-mono-code" style="font-size:11px;color:#fcd34d;margin-left:4px;">${pt.currentTemp.split(" ")[0]}</span>
+            </div>
+            <div class="font-mono-code" style="font-size:10.5px;color:#38bdf8;margin-bottom:4px;">
+              GPS: ${pt.lat.toFixed(4)}, ${pt.lng.toFixed(4)} • ${pt.timestamp.replace(" (GMT+7)", "")}
+            </div>
+            <p style="font-size:11px;color:#cbd5e1;margin:0;line-height:1.35;">
+              ${pt.forecastDetail}
+            </p>
+          `;
+          card.addEventListener("click", () => {
+            stopAutoTour();
+            flyCameraHighToLow(pt.id, true);
+          });
+          listEl.appendChild(card);
+        });
+      }
+
+      // Render Structured Google Sheet Table View (Inline Editable & Synced)
+      const tbody = document.getElementById("sheet-table-body");
+      tbody.innerHTML = "";
+      WEATHER_POINTS.forEach((pt) => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td class="font-mono-code" style="font-weight:700;color:#94a3b8;">${pt.id}</td>
+          <td class="font-mono-code editable-cell" contenteditable="true" data-id="${pt.id}" data-field="timestamp" style="color:#7dd3fc;white-space:nowrap;" title="Chạm để sửa Ngày giờ">${pt.timestamp}</td>
+          <td>
+            <div class="editable-cell" contenteditable="true" data-id="${pt.id}" data-field="locationName" style="font-weight:700;color:#ffffff;" title="Chạm để sửa Khu vực / Địa danh">${pt.locationName}</div>
+            <div class="editable-cell" contenteditable="true" data-id="${pt.id}" data-field="regionName" style="font-size:10.5px;color:#94a3b8;" title="Chạm để sửa Vùng miền">${pt.regionName}</div>
+          </td>
+          <td class="font-mono-code editable-cell" contenteditable="true" data-id="${pt.id}" data-field="gps" style="color:#6ee7b7;white-space:nowrap;" title="Chạm để sửa Tọa độ GPS (Lat, Lng)">${pt.lat.toFixed(4)}, ${pt.lng.toFixed(4)}</td>
+          <td>
+            <span class="editable-cell" contenteditable="true" data-id="${pt.id}" data-field="hazardBadge" style="display:inline-block;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700;background:${pt.colorHex}25;color:${pt.colorHex};border:1px solid ${pt.colorHex}55;" title="Chạm để sửa Loại cảnh báo">
+              ${pt.iconEmoji} ${pt.hazardBadge}
+            </span>
+            <div class="editable-cell" contenteditable="true" data-id="${pt.id}" data-field="severityLevel" style="font-size:10px;color:#94a3b8;margin-top:2px;">${pt.severityLevel}</div>
+          </td>
+          <td>
+            <div class="editable-cell" contenteditable="true" data-id="${pt.id}" data-field="currentTemp" style="font-weight:600;color:#fcd34d;" title="Chạm để sửa Nhiệt độ">${pt.currentTemp}</div>
+            <div class="editable-cell" contenteditable="true" data-id="${pt.id}" data-field="rainfallWind" style="font-size:10.5px;color:#67e8f9;" title="Chạm để sửa Lượng mưa / Gió">${pt.rainfallWind}</div>
+          </td>
+          <td style="max-width:360px;color:#cbd5e1;line-height:1.4;">
+            <div class="editable-cell" contenteditable="true" data-id="${pt.id}" data-field="forecastCombined" title="Chạm để sửa Thông tin dự báo & hiện trạng">${pt.currentSummary} ${pt.forecastDetail}</div>
+            <a href="${pt.sourceUrl}" target="_blank" rel="noopener noreferrer" style="color:#38bdf8;font-size:10px;">[Nguồn NCHMF ↗]</a>
+          </td>
+          <td style="white-space:nowrap;">
+            <div style="display:flex;gap:4px;">
+              <button type="button" data-zoom-id="${pt.id}" class="sheet-zoom-btn" style="background:#0284c7;color:#fff;border-color:#38bdf8;">
+                🚀 Bay tới điểm
+              </button>
+              <button type="button" data-del-id="${pt.id}" class="sheet-del-btn" style="background:rgba(239,68,68,0.2);color:#fca5a5;border-color:#ef4444;padding:4px 6px;" title="Xóa dòng này">
+                ✕
+              </button>
+            </div>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      document.querySelectorAll(".sheet-zoom-btn").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const targetId = Number(btn.dataset.zoomId);
+          document.getElementById("sheet-modal").classList.add("hidden");
+          stopAutoTour();
+          flyCameraHighToLow(targetId, true);
+        });
+      });
+
+      document.querySelectorAll(".sheet-del-btn").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const delId = Number(btn.dataset.delId);
+          if (WEATHER_POINTS.length <= 1) return;
+          WEATHER_POINTS = WEATHER_POINTS.filter((p) => p.id !== delId);
+          savePointsToLocalCache();
+          renderSidebarAndTable();
+          showLiveSyncToast(`🗑️ Đã xóa điểm #${delId} & cập nhật bản đồ tức thì`);
+        });
+      });
+
+      document.querySelectorAll(".editable-cell").forEach((cell) => {
+        cell.addEventListener("blur", () => {
+          const id = Number(cell.dataset.id);
+          const field = cell.dataset.field;
+          const val = (cell.textContent || "").trim();
+          const pt = WEATHER_POINTS.find((p) => p.id === id);
+          if (!pt || !val) return;
+          let changed = false;
+          if (field === "gps") {
+            const nums = val.match(/-?\d+(?:\.\d+)?/g);
+            if (nums && nums.length >= 2) {
+              const newLat = parseFloat(nums[0]);
+              const newLng = parseFloat(nums[1]);
+              if (!isNaN(newLat) && !isNaN(newLng) && (newLat !== pt.lat || newLng !== pt.lng)) {
+                pt.lat = newLat;
+                pt.lng = newLng;
+                changed = true;
+              }
+            }
+          } else if (field === "forecastCombined") {
+            if (val !== `${pt.currentSummary} ${pt.forecastDetail}`.trim()) {
+              pt.currentSummary = "Cập nhật trực tiếp:";
+              pt.forecastDetail = val;
+              const styleInfo = classifyHazardStyle(pt.hazardBadge + " " + val);
+              pt.hazardCode = styleInfo.hazardCode;
+              pt.colorHex = styleInfo.colorHex;
+              pt.iconEmoji = styleInfo.iconEmoji;
+              changed = true;
+            }
+          } else if (field === "hazardBadge") {
+            const cleanBadge = val.replace(/^[^\wÀ-ỹ]+/, "").trim();
+            if (cleanBadge && cleanBadge !== pt.hazardBadge) {
+              pt.hazardBadge = cleanBadge;
+              const styleInfo = classifyHazardStyle(cleanBadge + " " + pt.forecastDetail);
+              pt.hazardCode = styleInfo.hazardCode;
+              pt.colorHex = styleInfo.colorHex;
+              pt.iconEmoji = styleInfo.iconEmoji;
+              changed = true;
+            }
+          } else if (field === "locationName") {
+            if (val !== pt.locationName) {
+              pt.locationName = val;
+              pt.shortLabel = `${pt.id}. ${val.split(",")[0].split("(")[0].trim().slice(0, 18)}`;
+              changed = true;
+            }
+          } else if (pt[field] !== val) {
+            pt[field] = val;
+            if (field === "regionName") {
+              pt.regionCode = classifyRegionCode(val, pt.locationName, pt.lat, pt.lng);
+            }
+            changed = true;
+          }
+
+          if (changed) {
+            savePointsToLocalCache();
+            renderSidebarAndTable();
+            if (activePointId === pt.id) {
+              updateTelemetryPanel(pt);
+              if (markersById[pt.id]) markersById[pt.id].openPopup();
+            }
+            showLiveSyncToast(`🟢 Đã làm tươi điểm #${pt.id} (${pt.shortLabel}) trên bản đồ`);
+          }
+        });
+      });
+    }
+
+    // =========================================================================
+    // TRÌNH CHIẾU HOẠT CẢNH TUẦN TRA TỰ ĐỘNG (AUTO-TOUR FLY-TO)
+    // =========================================================================
+    function startAutoTour() {
+      const points = getFilteredPoints();
+      if (points.length === 0) return;
+
+      isAutoTourRunning = true;
+      document.getElementById("auto-tour-icon").textContent = "⏸";
+      document.getElementById("auto-tour-label").textContent = "Đang chạy Tuần tra Zoom (Bấm để dừng)";
+      document.getElementById("btn-auto-tour").classList.add("tour-active");
+
+      const runStep = () => {
+        if (!isAutoTourRunning) return;
+        const pts = getFilteredPoints();
+        if (pts.length === 0) {
+          stopAutoTour();
+          return;
+        }
+        if (autoTourIndex >= pts.length) autoTourIndex = 0;
+        const pt = pts[autoTourIndex];
+        flyCameraHighToLow(pt.id, true);
+        autoTourIndex = (autoTourIndex + 1) % pts.length;
+        autoTourTimer = setTimeout(runStep, 6200);
+      };
+
+      runStep();
+    }
+
+    function stopAutoTour() {
+      isAutoTourRunning = false;
+      if (autoTourTimer) {
+        clearTimeout(autoTourTimer);
+        autoTourTimer = null;
+      }
+      document.getElementById("auto-tour-icon").textContent = "▶";
+      document.getElementById("auto-tour-label").textContent = "Trình chiếu Zoom Tự động (14 Điểm)";
+      document.getElementById("btn-auto-tour").classList.remove("tour-active");
+    }
+
+    // =========================================================================
+    // SỰ KIỆN NÚT BẤM & ĐIỀU HƯỚNG ĐIỆN THOẠI
+    // =========================================================================
+    document.getElementById("btn-auto-tour").addEventListener("click", () => {
+      if (isAutoTourRunning) {
+        stopAutoTour();
+      } else {
+        startAutoTour();
+      }
+    });
+
+    document.getElementById("btn-overview-vn").addEventListener("click", () => {
+      stopAutoTour();
+      clearCameraTimers();
+      map.closePopup();
+      if (window.innerWidth < 1024) setMobileDrawerOpen(false);
+      document.getElementById("hud-crosshair").classList.add("opacity-0");
+      const zOverview = window.innerWidth < 640 ? 5.3 : 5.6;
+      updateAltitudeHud(zOverview, "Toàn cảnh Việt Nam", "#34d399");
+      map.flyTo([15.2, 108.2], zOverview, { animate: true, duration: 1.5 });
+    });
+
+    document.getElementById("btn-replay-zoom").addEventListener("click", () => {
+      stopAutoTour();
+      if (activePointId) {
+        flyCameraHighToLow(activePointId, true);
+      } else {
+        flyCameraHighToLow(6, true);
+      }
+    });
+
+    document.getElementById("btn-prev-point-mobile").addEventListener("click", () => {
+      stopAutoTour();
+      const pts = getFilteredPoints();
+      if (pts.length === 0) return;
+      const idx = pts.findIndex((p) => p.id === activePointId);
+      const prevIdx = idx <= 0 ? pts.length - 1 : idx - 1;
+      flyCameraHighToLow(pts[prevIdx].id, true);
+    });
+
+    document.getElementById("btn-next-point-mobile").addEventListener("click", () => {
+      stopAutoTour();
+      const pts = getFilteredPoints();
+      if (pts.length === 0) return;
+      const idx = pts.findIndex((p) => p.id === activePointId);
+      const nextIdx = idx < 0 || idx >= pts.length - 1 ? 0 : idx + 1;
+      flyCameraHighToLow(pts[nextIdx].id, true);
+    });
+
+    // Chuyển lớp nền Google Maps
+    document.querySelectorAll(".tile-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const tileKey = btn.dataset.tile;
+        currentTileMode = tileKey;
+        Object.values(GOOGLE_TILES).forEach((layer) => {
+          if (map.removeLayer) map.removeLayer(layer);
+        });
+        if (GOOGLE_TILES[tileKey] && GOOGLE_TILES[tileKey].addTo) {
+          GOOGLE_TILES[tileKey].addTo(map);
+        }
+        renderSynchronizedBaseMap();
+
+        document.querySelectorAll(".tile-btn").forEach((b) => b.classList.remove("active-tile"));
+        btn.classList.add("active-tile");
+      });
+    });
+
+    // Bộ lọc Vùng miền
+    document.querySelectorAll(".region-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        activeRegionFilter = btn.dataset.region;
+        document.querySelectorAll(".region-btn").forEach((b) => b.classList.remove("active-filter"));
+        btn.classList.add("active-filter");
+        renderSidebarAndTable();
+        const pts = getFilteredPoints();
+        if (pts.length > 0) {
+          flyCameraHighToLow(pts[0].id, true);
+        }
+      });
+    });
+
+    // Bộ lọc Cảnh báo
+    document.querySelectorAll(".hazard-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        activeHazardFilter = btn.dataset.hazard;
+        document.querySelectorAll(".hazard-btn").forEach((b) => b.classList.remove("active-filter"));
+        btn.classList.add("active-filter");
+        renderSidebarAndTable();
+        const pts = getFilteredPoints();
+        if (pts.length > 0) {
+          flyCameraHighToLow(pts[0].id, true);
+        }
+      });
+    });
+
+    document.getElementById("search-input").addEventListener("input", () => {
+      renderSidebarAndTable();
+    });
+
+    document.getElementById("btn-toggle-sheet").addEventListener("click", () => {
+      const modal = document.getElementById("sheet-modal");
+      modal.classList.toggle("hidden");
+    });
+
+    document.getElementById("btn-close-sheet").addEventListener("click", () => {
+      document.getElementById("sheet-modal").classList.add("hidden");
+    });
+
+    // Xuất CSV chuẩn cấu trúc Google Sheet
+    document.getElementById("btn-export-csv").addEventListener("click", () => {
+      const headers = [
+        "STT",
+        "Ngày giờ (Giờ Hà Nội)",
+        "Vùng miền",
+        "Khu vực địa danh",
+        "Tọa độ GPS đại diện",
+        "Vĩ độ (Lat)",
+        "Kinh độ (Lng)",
+        "Loại hình thời tiết cực đoan",
+        "Nhiệt độ hiện tại & dự báo",
+        "Lượng mưa / Gió / Sóng",
+        "Cấp độ rủi ro",
+        "Thông tin dự báo và hiện tại tình hình thời tiết",
+        "Nguồn dữ liệu"
+      ];
+      const rows = WEATHER_POINTS.map((pt) => [
+        pt.id,
+        pt.timestamp,
+        pt.regionName,
+        pt.locationName,
+        `${pt.lat}, ${pt.lng}`,
+        pt.lat,
+        pt.lng,
+        pt.hazardBadge,
+        `${pt.currentTemp} | Dự báo: ${pt.forecastTemp}`,
+        pt.rainfallWind,
+        pt.severityLevel,
+        `${pt.currentSummary} ${pt.forecastDetail}`,
+        pt.sourceUrl
+      ]);
+
+      const escapeCsv = (val) => `"${String(val).replace(/"/g, '""')}"`;
+      const csvContent =
+        "\uFEFF" +
+        [headers.map(escapeCsv).join(","), ...rows.map((r) => r.map(escapeCsv).join(","))].join("\r\n");
+
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "du_lieu_thoi_tiet_cuc_doan_viet_nam_17_18_10_2026.csv";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    });
+
+    // Sao chép TSV để dán trực tiếp vào Google Sheet
+    document.getElementById("btn-copy-tsv").addEventListener("click", () => {
+      const headers = [
+        "STT",
+        "Ngày giờ (Giờ Hà Nội)",
+        "Vùng miền",
+        "Khu vực địa danh",
+        "Tọa độ GPS đại diện",
+        "Loại hình cực đoan",
+        "Nhiệt độ & Lượng mưa",
+        "Hiện trạng & Dự báo chi tiết",
+        "Nguồn"
+      ];
+      const lines = [
+        headers.join("\t"),
+        ...WEATHER_POINTS.map((pt) =>
+          [
+            pt.id,
+            pt.timestamp,
+            pt.regionName,
+            pt.locationName,
+            `${pt.lat}, ${pt.lng}`,
+            pt.hazardBadge,
+            `${pt.currentTemp} (${pt.forecastTemp}) - ${pt.rainfallWind}`,
+            `${pt.currentSummary} ${pt.forecastDetail}`,
+            pt.sourceUrl
+          ].join("\t")
+        )
+      ].join("\n");
+
+      const textarea = document.createElement("textarea");
+      textarea.value = lines;
+      document.body.appendChild(textarea);
+      textarea.select();
+      try {
+        document.execCommand("copy");
+      } catch (e) {}
+      document.body.removeChild(textarea);
+
+      const toast = document.getElementById("copy-toast");
+      toast.classList.remove("hidden");
+      setTimeout(() => toast.classList.add("hidden"), 3500);
+    });
+
+
+    // =========================================================================
+    // ENGINE ĐỒNG BỘ DỮ LIỆU THỜI GIAN THỰC VỚI GOOGLE SHEET (LIVE SYNC ENGINE)
+    // Hỗ trợ 4 kênh:
+    // 1) Google Visualization JSONP (Vượt rào cản CORS trình duyệt khi Sheet bật chia sẻ xem)
+    // 2) Fetch trực tiếp Google Sheet CSV / Gviz CSV (cache: no-store + chống lưu đệm)
+    // 3) Tự động làm tươi định kỳ (15s/30s/60s) + Làm tươi tức thì khi chuyển tab (window.focus)
+    // 4) Sửa trực tiếp trên bảng / Dán nhanh TSV-CSV từ Google Sheet ➔ Cập nhật Bản đồ 0ms
+    // =========================================================================
+    const STORAGE_KEY_POINTS = "VN_EXTREME_WEATHER_POINTS_V3";
+    const STORAGE_KEY_SHEET_URL = "VN_EXTREME_WEATHER_SHEET_URL_V2";
+    let pollIntervalSec = 10;
+    let pollTimerId = null;
+    let lastSheetSignature = "";
+    let isFetchingSheet = false;
+
+    function nowHanoiString() {
+      try {
+        return new Intl.DateTimeFormat("vi-VN", {
+          timeZone: "Asia/Ho_Chi_Minh",
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric"
+        }).format(new Date());
+      } catch (e) {
+        return new Date().toLocaleTimeString("vi-VN");
+      }
+    }
+
+    function showLiveSyncToast(msg, isWarning = false) {
+      const toast = document.getElementById("live-sync-toast");
+      if (!toast) return;
+      toast.textContent = msg;
+      toast.style.borderColor = isWarning ? "#f59e0b" : "#10b981";
+      toast.style.color = isWarning ? "#fde047" : "#6ee7b7";
+      toast.classList.remove("hidden");
+      clearTimeout(toast._hideTimer);
+      toast._hideTimer = setTimeout(() => {
+        toast.classList.add("hidden");
+      }, 3600);
+    }
+
+    function classifyRegionCode(regionText, locationText, lat, lng) {
+      const combined = `${regionText || ""} ${locationText || ""}`.toLowerCase();
+      if (combined.includes("biển") || combined.includes("trường sa") || combined.includes("hoàng sa") || combined.includes("vịnh") || lng >= 109.45) {
+        return "BIEN_DONG";
+      }
+      if (combined.includes("bắc bộ") || combined.includes("hà nội") || combined.includes("phú thọ") || combined.includes("điện biên") || combined.includes("sơn la") || combined.includes("hải phòng") || combined.includes("quảng ninh") || lat >= 20.0) {
+        return "BAC_BO";
+      }
+      if (combined.includes("tây nguyên") || combined.includes("đắk lắk") && !combined.includes("tuy hòa") || combined.includes("gia lai") && !combined.includes("quy nhơn") || combined.includes("lâm đồng") || combined.includes("đà lạt") || combined.includes("bảo lộc") || combined.includes("buôn ma thuột") || combined.includes("pleiku") || combined.includes("kon tum")) {
+        return "TAY_NGUYEN";
+      }
+      if (combined.includes("nam bộ") || combined.includes("đbscl") || combined.includes("hồ chí minh") || combined.includes("tp.hcm") || combined.includes("sài gòn") || combined.includes("đồng nai") || combined.includes("cần thơ") || combined.includes("cà mau") || combined.includes("an giang") || (lat < 11.95 && lng < 107.65)) {
+        return "NAM_BO";
+      }
+      return "MIEN_TRUNG";
+    }
+
+    function classifyHazardStyle(text) {
+      const t = (text || "").toLowerCase();
+      if (t.includes("lũ quét") || t.includes("sạt lở") || t.includes("sụt lún") || t.includes("khẩn")) {
+        return { hazardCode: "FLASH_FLOOD", colorHex: "#ef4444", iconEmoji: "🚨", radiusMeters: 48000, targetZoom: 8.5 };
+      }
+      if (t.includes("bão") || t.includes("áp thấp") || t.includes("atnđ") || t.includes("trường sa")) {
+        return { hazardCode: "MARINE_STORM", colorHex: "#a855f7", iconEmoji: "🌀", radiusMeters: 150000, targetZoom: 6.5 };
+      }
+      if (t.includes("lốc xoáy") || t.includes("trên biển") || t.includes("cấp 7") || t.includes("cấp 8") || t.includes("sóng lớn")) {
+        return { hazardCode: "MARINE_STORM", colorHex: "#06b6d4", iconEmoji: "🌪️", radiusMeters: 110000, targetZoom: 6.8 };
+      }
+      if (t.includes("nắng nóng") || t.includes("nóng nhất") || t.includes("đỉnh nhiệt") || t.includes("biên độ nhiệt") || t.includes("34°c") || t.includes("35°c")) {
+        return { hazardCode: "HEAT_PEAK", colorHex: "#eab308", iconEmoji: "☀️", radiusMeters: 42000, targetZoom: 8.5 };
+      }
+      return { hazardCode: "HEAVY_RAIN", colorHex: "#f97316", iconEmoji: "⛈️", radiusMeters: 48000, targetZoom: 8.5 };
+    }
+
+    function parseCoordinatesPair(strOrLat, lngCandidate) {
+      if (typeof strOrLat === "number" && typeof lngCandidate === "number" && !isNaN(strOrLat) && !isNaN(lngCandidate)) {
+        return { lat: strOrLat, lng: lngCandidate };
+      }
+      const combined = `${strOrLat || ""} ${lngCandidate || ""}`.replace(/,/g, " ");
+      const matches = combined.match(/-?\d+(?:\.\d+)?/g);
+      if (matches && matches.length >= 2) {
+        const n1 = parseFloat(matches[0]);
+        const n2 = parseFloat(matches[1]);
+        if (n1 >= 5 && n1 <= 25 && n2 >= 100 && n2 <= 120) {
+          return { lat: n1, lng: n2 };
+        }
+        if (n2 >= 5 && n2 <= 25 && n1 >= 100 && n1 <= 120) {
+          return { lat: n2, lng: n1 };
+        }
+      }
+      return null;
+    }
+
+    // Chuyển đổi mảng dòng 2D từ Google Sheet (4 cột hoặc 9-13 cột) sang chuẩn WEATHER_POINTS
+    function convertRawRowsToWeatherPoints(rawRows) {
+      if (!Array.isArray(rawRows) || rawRows.length === 0) return [];
+      const parsedPoints = [];
+
+      rawRows.forEach((cols) => {
+        if (!Array.isArray(cols)) return;
+        const cleanCols = cols.map((c) => String(c == null ? "" : c).trim());
+        const joinedRow = cleanCols.join(" ").toLowerCase();
+        if (
+          !joinedRow ||
+          joinedRow.includes("tọa độ gps đại diện") ||
+          joinedRow.includes("khu vực địa danh") ||
+          cleanCols[0].toLowerCase() === "stt"
+        ) {
+          return; // Bỏ qua dòng tiêu đề
+        }
+
+        let id = parsedPoints.length + 1;
+        const maybeId = parseInt(cleanCols[0], 10);
+        if (!isNaN(maybeId) && maybeId > 0) id = maybeId;
+        const defaultPt = DEFAULT_WEATHER_POINTS.find((dp) => dp.id === id);
+
+        // Kiểm tra tọa độ GPS ở cột E (cleanCols[4]) và cột F, G (cleanCols[5], cleanCols[6])
+        let coords = null;
+        let gpsColIdx = -1;
+        if (cleanCols.length >= 7) {
+          const cCol4 = parseCoordinatesPair(cleanCols[4], "");
+          const cCol56 = parseCoordinatesPair(cleanCols[5], cleanCols[6]);
+          if (cCol4 && cCol56 && defaultPt) {
+            const col4Changed = Math.abs(cCol4.lat - defaultPt.lat) > 0.0005 || Math.abs(cCol4.lng - defaultPt.lng) > 0.0005;
+            const col56Changed = Math.abs(cCol56.lat - defaultPt.lat) > 0.0005 || Math.abs(cCol56.lng - defaultPt.lng) > 0.0005;
+            coords = col56Changed && !col4Changed ? cCol56 : cCol4;
+            gpsColIdx = 4;
+          } else if (cCol4) {
+            coords = cCol4;
+            gpsColIdx = 4;
+          } else if (cCol56) {
+            coords = cCol56;
+            gpsColIdx = 5;
+          }
+        }
+        if (!coords) {
+          for (let i = 0; i < cleanCols.length; i++) {
+            const c = parseCoordinatesPair(cleanCols[i], cleanCols[i + 1]);
+            if (c) {
+              coords = c;
+              gpsColIdx = i;
+              break;
+            }
+          }
+        }
+        if (!coords) return;
+
+        let timestamp = "17/10/2026 21:45 (GMT+7)";
+        let regionName = "";
+        let locationName = "";
+        let hazardBadge = "";
+        let currentTemp = "27°C";
+        let forecastTemp = "23°C – 32°C";
+        let rainfallWind = "Mưa dông rải rác • Gió cấp 2–3";
+        let severityLevel = "Cảnh báo Thời tiết Cực đoan";
+        let currentSummary = "";
+        let forecastDetail = "";
+        let sourceUrl = "https://www.nchmf.gov.vn/";
+
+        // Trường hợp 1: Bảng đầy đủ 9–13 cột chuẩn Google Sheet
+        if (cleanCols.length >= 9 && gpsColIdx >= 3) {
+          timestamp = cleanCols[1] || timestamp;
+          regionName = cleanCols[2] || "Việt Nam";
+          locationName = cleanCols[3] || `Điểm cảnh báo #${id}`;
+          hazardBadge = cleanCols[7] || (defaultPt ? defaultPt.hazardBadge : "CẢNH BÁO THỜI TIẾT CỰC ĐOAN");
+
+          const tempCol = cleanCols[8] || "";
+          if (tempCol.includes("|")) {
+            const parts = tempCol.split("|");
+            currentTemp = parts[0].replace(/^Hiện tại\s*:\s*/i, "").trim() || currentTemp;
+            forecastTemp = parts[1].replace(/^Dự báo\s*:\s*/i, "").trim() || forecastTemp;
+          } else if (tempCol) {
+            currentTemp = tempCol.replace(/^Hiện tại\s*:\s*/i, "").trim();
+          }
+
+          rainfallWind = cleanCols[9] || rainfallWind;
+          severityLevel = cleanCols[10] || severityLevel;
+
+          const fullWeatherText = cleanCols[11] || "";
+          const splitIdx = fullWeatherText.search(/(?:Dự báo|Cảnh báo|Nhận định|Chiều và tối|Khoảng ngày)/i);
+          if (splitIdx > 15) {
+            currentSummary = fullWeatherText.slice(0, splitIdx).trim();
+            forecastDetail = fullWeatherText.slice(splitIdx).trim();
+          } else {
+            currentSummary = defaultPt ? defaultPt.currentSummary : "Cập nhật trực tiếp từ Google Sheet:";
+            forecastDetail = fullWeatherText;
+          }
+
+          const urlCandidate = cleanCols[12] || cleanCols[cleanCols.length - 1];
+          if (urlCandidate && urlCandidate.startsWith("http")) {
+            sourceUrl = urlCandidate;
+          }
+        } else {
+          // Trường hợp 2: Bảng rút gọn 4–6 cột: [Ngày giờ (Giờ Hà Nội), Khu vực địa danh, Tọa độ GPS, Thông tin dự báo & hiện tại]
+          if (gpsColIdx === 2) {
+            timestamp = cleanCols[0] || timestamp;
+            locationName = cleanCols[1] || `Điểm cảnh báo #${id}`;
+            forecastDetail = cleanCols.slice(3).join(" • ");
+          } else if (gpsColIdx === 3) {
+            timestamp = cleanCols[1] || timestamp;
+            locationName = cleanCols[2] || `Điểm cảnh báo #${id}`;
+            forecastDetail = cleanCols.slice(4).join(" • ");
+          } else {
+            locationName = cleanCols[0] || `Điểm cảnh báo #${id}`;
+            forecastDetail = cleanCols.slice(gpsColIdx + 1).join(" • ");
+          }
+          currentSummary = "Đồng bộ trực tiếp từ Google Sheet:";
+          const tempMatch = forecastDetail.match(/(\d{2}\s*°C)/i);
+          if (tempMatch) currentTemp = tempMatch[1];
+          const rainMatch = forecastDetail.match(/(mưa[^.,;]{3,35})/i);
+          if (rainMatch) rainfallWind = rainMatch[1];
+        }
+
+        const styleInfo = classifyHazardStyle(`${hazardBadge} ${severityLevel} ${forecastDetail}`);
+        if (!hazardBadge) {
+          hazardBadge =
+            styleInfo.hazardCode === "FLASH_FLOOD"
+              ? "CẢNH BÁO LŨ QUÉT & SẠT LỞ"
+              : styleInfo.hazardCode === "MARINE_STORM"
+              ? "CẢNH BÁO BÃO / ATNĐ & LỐC BIỂN"
+              : styleInfo.hazardCode === "HEAT_PEAK"
+              ? "CẢNH BÁO NẮNG NÓNG ĐỈNH NHIỆT"
+              : "CẢNH BÁO MƯA LỚN & DÔNG LỐC";
+        }
+        const regionCode = classifyRegionCode(regionName, locationName, coords.lat, coords.lng);
+        if (!regionName) {
+          regionName =
+            regionCode === "BAC_BO"
+              ? "Bắc Bộ"
+              : regionCode === "TAY_NGUYEN"
+              ? "Tây Nguyên"
+              : regionCode === "NAM_BO"
+              ? "Nam Bộ"
+              : regionCode === "BIEN_DONG"
+              ? "Biển Đông"
+              : "Miền Trung";
+        }
+
+        const existingMatch = DEFAULT_WEATHER_POINTS.find(
+          (dp) => dp.id === id || (Math.abs(dp.lat - coords.lat) < 0.02 && Math.abs(dp.lng - coords.lng) < 0.02)
+        );
+
+        const shortCity = locationName.split(",")[0].split("(")[0].trim().slice(0, 18);
+        parsedPoints.push({
+          id,
+          shortLabel: existingMatch && existingMatch.locationName === locationName ? existingMatch.shortLabel : `${id}. ${shortCity}`,
+          timestamp,
+          regionCode,
+          regionName,
+          locationName,
+          lat: coords.lat,
+          lng: coords.lng,
+          targetZoom: existingMatch ? existingMatch.targetZoom : styleInfo.targetZoom,
+          radiusMeters: existingMatch ? existingMatch.radiusMeters : styleInfo.radiusMeters,
+          hazardCode: styleInfo.hazardCode,
+          hazardBadge: hazardBadge.length > 42 ? hazardBadge.slice(0, 40) + "…" : hazardBadge,
+          severityLevel,
+          colorHex: styleInfo.colorHex,
+          iconEmoji: existingMatch && existingMatch.hazardCode === styleInfo.hazardCode ? existingMatch.iconEmoji : styleInfo.iconEmoji,
+          currentTemp,
+          forecastTemp,
+          rainfallWind,
+          currentSummary: currentSummary || (existingMatch ? existingMatch.currentSummary : "Quan trắc mới nhất:"),
+          forecastDetail: forecastDetail || (existingMatch ? existingMatch.forecastDetail : ""),
+          sourceName: existingMatch ? existingMatch.sourceName : "Google Sheet Live / NCHMF",
+          sourceUrl: sourceUrl || (existingMatch ? existingMatch.sourceUrl : "https://www.nchmf.gov.vn/")
+        });
+      });
+
+      return parsedPoints;
+    }
+
+    // Bộ phân tích CSV / TSV chuẩn (hỗ trợ cả dấu phẩy có ngoặc kép và dấu Tab)
+    function parseCsvOrTsvText(rawText) {
+      const text = (rawText || "").trim();
+      if (!text) return [];
+      const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
+      if (lines.length === 0) return [];
+
+      // Nếu dòng có dấu Tab (\t) -> TSV copy trực tiếp từ Google Sheet
+      if (lines[0].includes("\t")) {
+        return lines.map((line) => line.split("\t"));
+      }
+
+      // Phân tích CSV chuẩn RFC4180
+      const rows = [];
+      let currentRow = [];
+      let currentField = "";
+      let inQuotes = false;
+      for (let i = 0; i < text.length; i++) {
+        const ch = text[i];
+        const nextCh = text[i + 1];
+        if (inQuotes) {
+          if (ch === '"' && nextCh === '"') {
+            currentField += '"';
+            i++;
+          } else if (ch === '"') {
+            inQuotes = false;
+          } else {
+            currentField += ch;
+          }
+        } else {
+          if (ch === '"') {
+            inQuotes = true;
+          } else if (ch === ",") {
+            currentRow.push(currentField);
+            currentField = "";
+          } else if (ch === "\n") {
+            currentRow.push(currentField);
+            rows.push(currentRow);
+            currentRow = [];
+            currentField = "";
+          } else if (ch !== "\r") {
+            currentField += ch;
+          }
+        }
+      }
+      if (currentField.length > 0 || currentRow.length > 0) {
+        currentRow.push(currentField);
+        rows.push(currentRow);
+      }
+      return rows;
+    }
+
+    function savePointsToLocalCache() {
+      try {
+        localStorage.setItem(STORAGE_KEY_POINTS, JSON.stringify(WEATHER_POINTS));
+        lastSheetSignature = JSON.stringify(WEATHER_POINTS);
+      } catch (e) {}
+      const timeEl = document.getElementById("sheet-last-sync-time");
+      if (timeEl) {
+        timeEl.textContent = `Cập nhật: ${nowHanoiString()}`;
+      }
+    }
+
+    function applyFreshWeatherPoints(newPoints, sourceLabel, forceToast = false) {
+      if (!Array.isArray(newPoints) || newPoints.length === 0) return false;
+      const newSig = JSON.stringify(newPoints);
+      const hasChanged = newSig !== lastSheetSignature;
+      WEATHER_POINTS = newPoints;
+      lastSheetSignature = newSig;
+      savePointsToLocalCache();
+      renderSidebarAndTable();
+
+      if (activePointId) {
+        const updatedActive = WEATHER_POINTS.find((p) => p.id === activePointId);
+        if (updatedActive) {
+          updateTelemetryPanel(updatedActive);
+          if (markersById[updatedActive.id] && map.activePopupMarker) {
+            markersById[updatedActive.id].openPopup();
+          }
+        }
+      }
+
+      const statusEl = document.getElementById("sheet-sync-status-text");
+      if (statusEl) {
+        statusEl.textContent = `Đã đồng bộ ${WEATHER_POINTS.length} điểm cảnh báo từ ${sourceLabel} lúc ${nowHanoiString()}. Bản đồ luôn tự động làm tươi!`;
+      }
+      if (hasChanged || forceToast) {
+        showLiveSyncToast(`🟢 Đã làm tươi ${WEATHER_POINTS.length} điểm từ ${sourceLabel} (${nowHanoiString()})`);
+      }
+      return true;
+    }
+
+    function extractGoogleSheetId(urlOrId) {
+      const s = (urlOrId || "").trim();
+      const m = s.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+      if (m) return m[1];
+      if (/^[a-zA-Z0-9-_]{20,}$/.test(s)) return s;
+      return "1a9fX-0zRJlvxTcGB1UlGEHETLiJ5qzbm_Qn3_RUEBJQ";
+    }
+
+    // Kênh 1: Google Visualization JSONP (chuẩn cú pháp `tqx=out:json;responseHandler:${cbName}` + hook `google.visualization.Query.setResponse`)
+    function fetchGoogleSheetViaJsonp(sheetId, timeoutMs = 5000) {
+      return new Promise((resolve, reject) => {
+        const cbName = "__gvizSheetCallback_" + Date.now() + "_" + Math.floor(Math.random() * 10000);
+        const script = document.createElement("script");
+        let settled = false;
+
+        const cleanup = () => {
+          try { delete window[cbName]; } catch (e) { window[cbName] = undefined; }
+          if (script.parentNode) script.parentNode.removeChild(script);
+        };
+
+        const timer = setTimeout(() => {
+          if (settled) return;
+          settled = true;
+          cleanup();
+          reject(new Error("JSONP timeout"));
+        }, timeoutMs);
+
+        const handleGvizResponse = function (response) {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          cleanup();
+          try {
+            if (!response || !response.table || !Array.isArray(response.table.rows)) {
+              reject(new Error("Invalid Gviz payload"));
+              return;
+            }
+            const rawRows = response.table.rows.map((r) =>
+              (r.c || []).map((cell) => (cell ? (cell.f != null ? cell.f : cell.v != null ? cell.v : "") : ""))
+            );
+            resolve(rawRows);
+          } catch (err) {
+            reject(err);
+          }
+        };
+
+        window[cbName] = handleGvizResponse;
+        window.google = window.google || {};
+        window.google.visualization = window.google.visualization || {};
+        window.google.visualization.Query = window.google.visualization.Query || {};
+        window.google.visualization.Query.setResponse = handleGvizResponse;
+
+        script.onerror = () => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          cleanup();
+          reject(new Error("JSONP script error"));
+        };
+
+        // Chuẩn Google Visualization API dùng dấu hai chấm (:) cho responseHandler
+        script.src = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json;responseHandler:${cbName}&headers=1&_t=${Date.now()}`;
+        document.head.appendChild(script);
+      });
+    }
+
+    // Kênh 2: Fetch trực tiếp CSV từ Google Sheet (cache: no-store)
+    async function fetchGoogleSheetViaCsv(sheetUrlOrId) {
+      const sheetId = extractGoogleSheetId(sheetUrlOrId);
+      const candidates = [];
+      if (sheetUrlOrId.startsWith("http") && (sheetUrlOrId.includes("output=csv") || sheetUrlOrId.includes("format=csv"))) {
+        candidates.push(`${sheetUrlOrId}${sheetUrlOrId.includes("?") ? "&" : "?"}_t=${Date.now()}`);
+      }
+      candidates.push(`https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&_t=${Date.now()}`);
+      candidates.push(`https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&_t=${Date.now()}`);
+
+      for (const url of candidates) {
+        try {
+          const res = await fetch(url, { cache: "no-store", mode: "cors" });
+          if (res.ok) {
+            const text = await res.text();
+            if (text && !text.trim().startsWith("<!DOCTYPE") && !text.trim().startsWith("<html")) {
+              const rows = parseCsvOrTsvText(text);
+              if (rows.length > 0) return rows;
+            }
+          }
+        } catch (e) {}
+      }
+      throw new Error("CSV fetch unavailable");
+    }
+
+    // Hàm điều phối đồng bộ trực tiếp từ Google Sheet
+    async function syncFromGoogleSheet(isManual = false) {
+      if (isFetchingSheet) return;
+      isFetchingSheet = true;
+
+      const btnLive = document.getElementById("btn-live-sync");
+      const dotLive = document.getElementById("live-sync-dot");
+      const lblLive = document.getElementById("live-sync-label");
+      const urlInput = document.getElementById("input-sheet-url");
+      const sheetUrlOrId = (urlInput && urlInput.value) || "1a9fX-0zRJlvxTcGB1UlGEHETLiJ5qzbm_Qn3_RUEBJQ";
+      const sheetId = extractGoogleSheetId(sheetUrlOrId);
+
+      try {
+        localStorage.setItem(STORAGE_KEY_SHEET_URL, sheetUrlOrId);
+      } catch (e) {}
+
+      if (btnLive) btnLive.classList.add("syncing");
+      if (dotLive) dotLive.classList.add("syncing");
+      if (lblLive) lblLive.textContent = "Đang đồng bộ Sheet...";
+
+      let synced = false;
+      try {
+        // Ưu tiên 1: Google Visualization JSONP (tương thích 100% trình duyệt khi bật "Bất kỳ ai có liên kết", không bị chặn CORS)
+        const jsonpRows = await fetchGoogleSheetViaJsonp(sheetId);
+        const pts = convertRawRowsToWeatherPoints(jsonpRows);
+        if (pts.length > 0) {
+          applyFreshWeatherPoints(pts, "Google Sheet Live (Gviz JSONP)", isManual);
+          synced = true;
+        }
+      } catch (e1) {
+        try {
+          // Ưu tiên 2: Fetch CSV trực tiếp (không cache)
+          const csvRows = await fetchGoogleSheetViaCsv(sheetUrlOrId);
+          const pts = convertRawRowsToWeatherPoints(csvRows);
+          if (pts.length > 0) {
+            applyFreshWeatherPoints(pts, "Google Sheet Live (CSV)", isManual);
+            synced = true;
+          }
+        } catch (e2) {}
+      }
+
+      if (!synced) {
+        // Làm tươi bộ nhớ đệm hiện tại & cập nhật dấu thời gian kiểm tra
+        const timeEl = document.getElementById("sheet-last-sync-time");
+        if (timeEl) timeEl.textContent = `Kiểm tra: ${nowHanoiString()}`;
+        renderSidebarAndTable();
+        if (isManual) {
+          showLiveSyncToast(
+            `⚡ Đã làm tươi ${WEATHER_POINTS.length} điểm trên bản đồ (${nowHanoiString()}). Nếu Sheet chưa mở quyền công khai, bạn có thể sửa/dán trực tiếp trong Bảng!`,
+            false
+          );
+        }
+      }
+
+      if (btnLive) btnLive.classList.remove("syncing");
+      if (dotLive) dotLive.classList.remove("syncing");
+      if (lblLive) {
+        lblLive.textContent =
+          pollIntervalSec > 0 ? `Làm tươi Sheet (Tự động ${pollIntervalSec}s)` : "Làm tươi Sheet (Thủ công)";
+      }
+      isFetchingSheet = false;
+    }
+
+    function restartAutoPollTimer() {
+      if (pollTimerId) {
+        clearInterval(pollTimerId);
+        pollTimerId = null;
+      }
+      const lblLive = document.getElementById("live-sync-label");
+      if (pollIntervalSec > 0) {
+        if (lblLive) lblLive.textContent = `Làm tươi Sheet (Tự động ${pollIntervalSec}s)`;
+        pollTimerId = setInterval(() => {
+          syncFromGoogleSheet(false);
+        }, pollIntervalSec * 1000);
+      } else {
+        if (lblLive) lblLive.textContent = "Làm tươi Sheet (Thủ công)";
+      }
+    }
+
+    // Sự kiện các nút điều khiển Đồng bộ Google Sheet thời gian thực
+    document.getElementById("btn-live-sync").addEventListener("click", () => {
+      syncFromGoogleSheet(true);
+    });
+
+    document.getElementById("btn-sync-sheet-now").addEventListener("click", () => {
+      syncFromGoogleSheet(true);
+    });
+
+    document.getElementById("select-poll-interval").addEventListener("change", (e) => {
+      pollIntervalSec = Number(e.target.value) || 0;
+      restartAutoPollTimer();
+      showLiveSyncToast(
+        pollIntervalSec > 0
+          ? `🔄 Đã bật tự động quét làm tươi Google Sheet mỗi ${pollIntervalSec} giây`
+          : "⏸ Đã chuyển sang chế độ làm tươi Google Sheet thủ công"
+      );
+    });
+
+    document.getElementById("btn-toggle-paste-box").addEventListener("click", () => {
+      const panel = document.getElementById("paste-sync-panel");
+      panel.classList.toggle("hidden");
+      if (!panel.classList.contains("hidden")) {
+        document.getElementById("textarea-paste-sheet").focus();
+      }
+    });
+
+    document.getElementById("btn-cancel-paste").addEventListener("click", () => {
+      document.getElementById("paste-sync-panel").classList.add("hidden");
+    });
+
+    document.getElementById("btn-apply-pasted-data").addEventListener("click", () => {
+      const raw = document.getElementById("textarea-paste-sheet").value;
+      const rows = parseCsvOrTsvText(raw);
+      const pts = convertRawRowsToWeatherPoints(rows);
+      if (pts.length > 0) {
+        applyFreshWeatherPoints(pts, "Dữ liệu dán từ Google Sheet", true);
+        document.getElementById("paste-sync-panel").classList.add("hidden");
+        document.getElementById("sheet-modal").classList.add("hidden");
+        flyCameraHighToLow(pts[0].id, true);
+      } else {
+        showLiveSyncToast("⚠️ Không tìm thấy tọa độ GPS hợp lệ (VD: 13.0882, 109.3135). Hãy kiểm tra lại cột tọa độ!", true);
+      }
+    });
+
+    document.getElementById("btn-add-weather-row").addEventListener("click", () => {
+      const nextId = WEATHER_POINTS.reduce((max, p) => Math.max(max, p.id), 0) + 1;
+      const newPoint = {
+        id: nextId,
+        shortLabel: `${nextId}. Điểm mới (${nowHanoiString().slice(0, 5)})`,
+        timestamp: `${nowHanoiString()} (GMT+7)`,
+        regionCode: "TAY_NGUYEN",
+        regionName: "Tây Nguyên & Nam Trung Bộ",
+        locationName: `Điểm Cảnh Báo Mới #${nextId} (Chạm để sửa tên)`,
+        lat: 12.8500,
+        lng: 108.5500,
+        targetZoom: 8.5,
+        radiusMeters: 48000,
+        hazardCode: "HEAVY_RAIN",
+        hazardBadge: "MƯA LỚN & CẢNH BÁO MỚI CẬP NHẬT",
+        severityLevel: "Cấp độ rủi ro thiên tai: Cấp 1",
+        colorHex: "#f97316",
+        iconEmoji: "⛈️",
+        currentTemp: "25°C",
+        forecastTemp: "21°C – 30°C",
+        rainfallWind: "Mưa to cục bộ >70mm • Gió giật mạnh",
+        currentSummary: "Dữ liệu vừa thêm trực tiếp vào bảng Sheet:",
+        forecastDetail: "Chạm trực tiếp vào các ô Ngày giờ, Địa danh, Tọa độ GPS hoặc Dự báo để chỉnh sửa. Bản đồ sẽ tự động cập nhật vị trí và Popup ngay lập tức.",
+        sourceName: "Google Sheet Live Update",
+        sourceUrl: "https://docs.google.com/spreadsheets/d/1a9fX-0zRJlvxTcGB1UlGEHETLiJ5qzbm_Qn3_RUEBJQ/edit"
+      };
+      WEATHER_POINTS.unshift(newPoint);
+      savePointsToLocalCache();
+      renderSidebarAndTable();
+      showLiveSyncToast(`➕ Đã thêm điểm cảnh báo #${nextId} — Chạm vào ô bất kỳ để sửa tọa độ & thông tin!`);
+    });
+
+    document.getElementById("btn-reset-default-data").addEventListener("click", () => {
+      WEATHER_POINTS = JSON.parse(JSON.stringify(DEFAULT_WEATHER_POINTS));
+      try { localStorage.removeItem(STORAGE_KEY_POINTS); } catch (e) {}
+      savePointsToLocalCache();
+      renderSidebarAndTable();
+      showLiveSyncToast("↺ Đã khôi phục 14 điểm cảnh báo chuẩn NCHMF ban đầu");
+    });
+
+    // Tự động làm tươi ngay khi người dùng vừa sửa Google Sheet ở tab khác rồi quay lại tab Bản đồ hoặc khi có mạng trở lại
+    window.addEventListener("focus", () => {
+      syncFromGoogleSheet(false);
+    });
+    window.addEventListener("online", () => {
+      syncFromGoogleSheet(false);
+    });
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") {
+        syncFromGoogleSheet(false);
+      }
+    });
+
+    // Bộ hẹn giờ tự động kích hoạt đồng bộ đúng khung 06:00 sáng Giờ Hà Nội (GMT+7) hàng ngày mà KHÔNG cần tải lại trang
+    let lastDaily6AmSyncDate = "";
+    setInterval(() => {
+      try {
+        const parts = new Intl.DateTimeFormat("en-GB", {
+          timeZone: "Asia/Ho_Chi_Minh",
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: false
+        }).formatToParts(new Date());
+        const mapParts = {};
+        parts.forEach((p) => { mapParts[p.type] = p.value; });
+        const dateKey = `${mapParts.year}-${mapParts.month}-${mapParts.day}`;
+        const hh = Number(mapParts.hour);
+        const mm = Number(mapParts.minute);
+        // Trong khung 06:00 - 06:10 sáng Giờ Hà Nội, tự động quét và nạp dữ liệu mới từ Google Sheet
+        if (hh === 6 && mm <= 10 && lastDaily6AmSyncDate !== `${dateKey}_${mm}`) {
+          lastDaily6AmSyncDate = `${dateKey}_${mm}`;
+          syncFromGoogleSheet(false);
+        }
+      } catch (e) {}
+    }, 20000);
+
+
+    // =========================================================================
+    // HỆ THỐNG PHÁT THANH VIÊN BẢN TIN THỜI TIẾT TRUYỀN HÌNH (TV NEWS BROADCAST)
+    // Âm thanh mở đầu Web Audio API + Giọng đọc tiếng Việt Web Speech API + 
+    // Đồng bộ camera bay trực tiếp theo từng phân đoạn vùng miền
+    // =========================================================================
+    let tvBroadcastState = {
+      isActive: false,
+      isPaused: false,
+      currentStep: 0,
+      segments: [],
+      speechRate: 1.0,
+      currentUtterance: null,
+      cachedVoices: []
+    };
+
+    function playTvNewsChime() {
+      try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return;
+        const ctx = new AudioCtx();
+        const now = ctx.currentTime;
+        // Chuỗi âm thanh đặc trưng bản tin Thời sự / VTV: G4 (392Hz) -> C5 (523.25Hz) -> G5 (783.99Hz)
+        const notes = [
+          { freq: 392.00, start: now + 0.02, dur: 0.18, vol: 0.28 },
+          { freq: 523.25, start: now + 0.20, dur: 0.22, vol: 0.35 },
+          { freq: 783.99, start: now + 0.42, dur: 0.60, vol: 0.42 }
+        ];
+        notes.forEach((n) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = "sine";
+          osc.frequency.setValueAtTime(n.freq, n.start);
+          gain.gain.setValueAtTime(0.001, n.start);
+          gain.gain.linearRampToValueAtTime(n.vol, n.start + 0.025);
+          gain.gain.exponentialRampToValueAtTime(0.0001, n.start + n.dur);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(n.start);
+          osc.stop(n.start + n.dur);
+        });
+        setTimeout(() => {
+          try { ctx.close(); } catch (e) {}
+        }, 1300);
+      } catch (e) {}
+    }
+
+    function initSpeechVoices() {
+      if (!window.speechSynthesis) return;
+      tvBroadcastState.cachedVoices = window.speechSynthesis.getVoices() || [];
+      if (window.speechSynthesis.onvoiceschanged !== undefined) {
+        window.speechSynthesis.onvoiceschanged = () => {
+          tvBroadcastState.cachedVoices = window.speechSynthesis.getVoices() || [];
+        };
+      }
+    }
+    initSpeechVoices();
+
+    function getBestVietnameseVoice() {
+      if (!window.speechSynthesis) return null;
+      const voices = tvBroadcastState.cachedVoices.length > 0 ? tvBroadcastState.cachedVoices : window.speechSynthesis.getVoices() || [];
+      // Ưu tiên giọng tiếng Việt chuẩn (vi-VN, Google Tiếng Việt, Microsoft HoaiMy, Nam/Nữ)
+      const viVoice = voices.find((v) => v.lang === "vi-VN" || v.lang === "vi_VN" || v.lang.toLowerCase().startsWith("vi"));
+      return viVoice || voices[0] || null;
+    }
+
+    // Tự động tổng hợp kịch bản bản tin truyền hình thời tiết từ dữ liệu WEATHER_POINTS thực tế
+    function generateTvNewsSegments() {
+      const getPt = (id) => WEATHER_POINTS.find((p) => p.id === id);
+      const hanoi = getPt(1) || DEFAULT_WEATHER_POINTS[0];
+      const phuTho = getPt(2) || DEFAULT_WEATHER_POINTS[1];
+      const tuyHoa = getPt(6) || DEFAULT_WEATHER_POINTS[5];
+      const daNang = getPt(5) || DEFAULT_WEATHER_POINTS[4];
+      const nhaTrang = getPt(7) || DEFAULT_WEATHER_POINTS[6];
+      const lamDong = getPt(9) || DEFAULT_WEATHER_POINTS[8];
+      const dongNai = getPt(10) || DEFAULT_WEATHER_POINTS[9];
+      const hcm = getPt(11) || DEFAULT_WEATHER_POINTS[10];
+      const dbscl = getPt(12) || DEFAULT_WEATHER_POINTS[11];
+      const bienNam = getPt(13) || DEFAULT_WEATHER_POINTS[12];
+      const truongSa = getPt(14) || DEFAULT_WEATHER_POINTS[13];
+
+      return [
+        {
+          title: "Mở đầu Bản tin",
+          action: () => {
+            const zOverview = window.innerWidth < 640 ? 5.3 : 5.6;
+            map.closePopup();
+            updateAltitudeHud(zOverview, "Toàn cảnh Việt Nam", "#34d399");
+            map.flyTo([15.2, 108.2], zOverview, { animate: true, duration: 1.5 });
+          },
+          text: "Kính chào quý vị khán giả! Sau đây là bản tin dự báo thời tiết cực đoan trên toàn quốc cập nhật mới nhất từ Trung tâm Dự báo Khí tượng Thủy văn Quốc gia."
+        },
+        {
+          title: "Bắc Bộ (Nắng hanh 34°C)",
+          action: () => {
+            flyCameraHighToLow(hanoi.id, true);
+          },
+          text: `Tại khu vực Bắc Bộ, trọng tâm là Hà Nội và Phú Thọ, hôm nay tiếp tục duy trì trạng thái ngày nắng hanh, độ ẩm giảm thấp. Nhiệt độ cao nhất trưa chiều chạm mốc ${hanoi.forecastTemp.replace("–", "đến")}, cao nhất miền Bắc. Vùng núi Tây Bắc đêm và sáng sớm trời rét, có sương mù nhẹ trước khi đón đợt không khí lạnh và mưa dông chuyển mùa.`
+        },
+        {
+          title: "Miền Trung (Mưa rất to >80mm)",
+          action: () => {
+            flyCameraHighToLow(tuyHoa.id, true);
+          },
+          text: `Chuyển sang khu vực Miền Trung. Cảnh báo đặc biệt từ Đà Nẵng, qua Tuy Hòa đến Nha Trang, xuất hiện mưa rào và dông rải rác, cục bộ có nơi mưa rất to trên 80 mi-li-mét trong thời gian ngắn, nguy cơ rất cao xảy ra lốc sét, mưa đá và sạt lở đất sườn dốc.`
+        },
+        {
+          title: "Tây Nguyên (Khẩn cấp Lũ quét)",
+          action: () => {
+            flyCameraHighToLow(lamDong.id, true);
+          },
+          text: `Tại Tây Nguyên, tình trạng lũ quét và sạt lở sườn dốc đang được đặt ở mức cảnh báo khẩn cấp tại 24 xã vùng đèo dốc tỉnh Lâm Đồng như Bảo Lộc, Bảo Lâm, Đạ Huoai và Cát Tiên sau những trận mưa dồn dập trên 72 mi-li-mét.`
+        },
+        {
+          title: "Nam Bộ & TP. Hồ Chí Minh",
+          action: () => {
+            flyCameraHighToLow(hcm.id, true);
+          },
+          text: `Xuống đến khu vực Nam Bộ, mực nước sông Đồng Nai tại Tà Lài đang dao động trên mức Báo động 1. Tại Thành phố Hồ Chí Minh và Đồng bằng sông Cửu Long, mưa lớn tập trung vào chiều tối, cục bộ vượt 80 đến 172 mi-li-mét, gây ngập sâu các tuyến đường đô thị trũng thấp.`
+        },
+        {
+          title: "Biển Đông & Quần đảo",
+          action: () => {
+            flyCameraHighToLow(truongSa.id, true);
+          },
+          text: `Trên Biển Đông, vùng biển từ Đà Nẵng đến Cà Mau và khu vực Trường Sa có mưa dông, lốc xoáy và gió giật mạnh cấp 7 đến cấp 8, sóng biển cao trên 2 mét. Cơ quan khí tượng tiếp tục theo dõi sát diễn biến xoáy thuận nhiệt đới.`
+        },
+        {
+          title: "Kết thúc Bản tin",
+          action: () => {
+            const zOverview = window.innerWidth < 640 ? 5.3 : 5.6;
+            map.closePopup();
+            updateAltitudeHud(zOverview, "Toàn cảnh Việt Nam", "#34d399");
+            map.flyTo([15.2, 108.2], zOverview, { animate: true, duration: 1.5 });
+          },
+          text: "Bản tin dự báo thời tiết cực đoan của chúng tôi xin được khép lại tại đây. Cảm ơn quý vị đã quan tâm theo dõi!"
+        }
+      ];
+    }
+
+    function startTvBroadcast() {
+      stopAutoTour();
+      clearCameraTimers();
+      if (window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+
+      playTvNewsChime();
+
+      tvBroadcastState.isActive = true;
+      tvBroadcastState.isPaused = false;
+      tvBroadcastState.currentStep = 0;
+      tvBroadcastState.segments = generateTvNewsSegments();
+
+      const tickerEl = document.getElementById("tv-news-ticker");
+      const btnTv = document.getElementById("btn-tv-broadcast");
+      const lblTv = document.getElementById("tv-broadcast-label");
+      const eqEl = document.getElementById("tv-equalizer");
+      const pauseBtn = document.getElementById("btn-tv-pause-resume");
+
+      if (tickerEl) tickerEl.classList.remove("hidden");
+      if (btnTv) btnTv.classList.add("broadcasting");
+      if (lblTv) lblTv.textContent = "Đang Phát TV Thời Sự (Bấm để Dừng)";
+      if (eqEl) eqEl.classList.add("active");
+      if (pauseBtn) pauseBtn.textContent = "⏸ Tạm dừng";
+
+      // Đợi tiếng Chime mở đầu vang lên 0.4s rồi bắt đầu đọc phân đoạn 1
+      setTimeout(() => {
+        playTvSegment(0);
+      }, 450);
+    }
+
+    function stopTvBroadcast() {
+      tvBroadcastState.isActive = false;
+      tvBroadcastState.isPaused = false;
+      if (window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+      tvBroadcastState.currentUtterance = null;
+
+      const tickerEl = document.getElementById("tv-news-ticker");
+      const btnTv = document.getElementById("btn-tv-broadcast");
+      const lblTv = document.getElementById("tv-broadcast-label");
+      const eqEl = document.getElementById("tv-equalizer");
+
+      if (tickerEl) tickerEl.classList.add("hidden");
+      if (btnTv) btnTv.classList.remove("broadcasting");
+      if (lblTv) lblTv.textContent = "Bản Tin Tivi (Phát thanh viên VTV)";
+      if (eqEl) eqEl.classList.remove("active");
+    }
+
+    function playTvSegment(stepIdx) {
+      if (!tvBroadcastState.isActive) return;
+      if (stepIdx < 0 || stepIdx >= tvBroadcastState.segments.length) {
+        stopTvBroadcast();
+        showLiveSyncToast("✅ Bản tin thời tiết truyền hình đã phát xong!");
+        return;
+      }
+
+      tvBroadcastState.currentStep = stepIdx;
+      const seg = tvBroadcastState.segments[stepIdx];
+
+      // Kích hoạt camera bay đồng bộ
+      if (typeof seg.action === "function") {
+        seg.action();
+      }
+
+      // Cập nhật phụ đề Teleprompter
+      const subEl = document.getElementById("tv-subtitles-text");
+      const counterEl = document.getElementById("tv-step-counter");
+      if (subEl) subEl.textContent = seg.text;
+      if (counterEl) counterEl.textContent = `${stepIdx + 1}/${tvBroadcastState.segments.length}`;
+
+      if (!("speechSynthesis" in window)) {
+        // Fallback tự động nhảy sau 7 giây nếu trình duyệt không hỗ trợ Web Speech
+        setTimeout(() => {
+          if (tvBroadcastState.isActive && !tvBroadcastState.isPaused) {
+            playTvSegment(stepIdx + 1);
+          }
+        }, 7000);
+        return;
+      }
+
+      window.speechSynthesis.cancel();
+
+      const utter = new SpeechSynthesisUtterance(seg.text);
+      utter.lang = "vi-VN";
+      utter.rate = tvBroadcastState.speechRate;
+      utter.pitch = 1.05;
+
+      const voice = getBestVietnameseVoice();
+      if (voice) utter.voice = voice;
+
+      utter.onend = () => {
+        if (tvBroadcastState.isActive && !tvBroadcastState.isPaused) {
+          setTimeout(() => {
+            playTvSegment(stepIdx + 1);
+          }, 800);
+        }
+      };
+
+      utter.onerror = (e) => {
+        if (tvBroadcastState.isActive && !tvBroadcastState.isPaused) {
+          setTimeout(() => {
+            playTvSegment(stepIdx + 1);
+          }, 4500);
+        }
+      };
+
+      tvBroadcastState.currentUtterance = utter;
+      window.speechSynthesis.speak(utter);
+    }
+
+    // Đọc riêng bản tin chi tiết của một điểm cảnh báo cụ thể
+    function speakSingleWeatherPoint(pointId) {
+      const pt = WEATHER_POINTS.find((p) => p.id === Number(pointId));
+      if (!pt) return;
+
+      stopAutoTour();
+      if (tvBroadcastState.isActive) {
+        stopTvBroadcast();
+      }
+
+      playTvNewsChime();
+      flyCameraHighToLow(pt.id, true);
+
+      const tickerEl = document.getElementById("tv-news-ticker");
+      const subEl = document.getElementById("tv-subtitles-text");
+      const counterEl = document.getElementById("tv-step-counter");
+      const eqEl = document.getElementById("tv-equalizer");
+
+      const text = `Bản tin thời tiết tại ${pt.locationName}, thuộc ${pt.regionName}: ${pt.hazardBadge}. ${pt.currentSummary} ${pt.forecastDetail} Nhiệt độ hiện tại: ${pt.currentTemp}, dự báo ${pt.forecastTemp}. Cảnh báo: ${pt.rainfallWind}.`;
+
+      if (tickerEl) tickerEl.classList.remove("hidden");
+      if (subEl) subEl.textContent = text;
+      if (counterEl) counterEl.textContent = `Điểm #${pt.id}`;
+      if (eqEl) eqEl.classList.add("active");
+
+      if (!("speechSynthesis" in window)) {
+        setTimeout(() => {
+          if (tickerEl) tickerEl.classList.add("hidden");
+          if (eqEl) eqEl.classList.remove("active");
+        }, 8000);
+        return;
+      }
+
+      window.speechSynthesis.cancel();
+      const utter = new SpeechSynthesisUtterance(text);
+      utter.lang = "vi-VN";
+      utter.rate = tvBroadcastState.speechRate;
+      utter.pitch = 1.05;
+
+      const voice = getBestVietnameseVoice();
+      if (voice) utter.voice = voice;
+
+      utter.onend = () => {
+        if (eqEl) eqEl.classList.remove("active");
+        setTimeout(() => {
+          if (!tvBroadcastState.isActive && tickerEl) {
+            tickerEl.classList.add("hidden");
+          }
+        }, 2500);
+      };
+
+      window.speechSynthesis.speak(utter);
+    }
+
+    // Sự kiện điều khiển Bản tin Tivi
+    document.getElementById("btn-tv-broadcast").addEventListener("click", () => {
+      if (tvBroadcastState.isActive) {
+        stopTvBroadcast();
+      } else {
+        startTvBroadcast();
+      }
+    });
+
+    document.getElementById("btn-tv-stop").addEventListener("click", () => {
+      stopTvBroadcast();
+    });
+
+    document.getElementById("btn-tv-pause-resume").addEventListener("click", () => {
+      if (!tvBroadcastState.isActive) return;
+      const btn = document.getElementById("btn-tv-pause-resume");
+      const eqEl = document.getElementById("tv-equalizer");
+
+      if (tvBroadcastState.isPaused) {
+        tvBroadcastState.isPaused = false;
+        btn.textContent = "⏸ Tạm dừng";
+        if (eqEl) eqEl.classList.add("active");
+        if (window.speechSynthesis && window.speechSynthesis.paused) {
+          window.speechSynthesis.resume();
+        } else {
+          playTvSegment(tvBroadcastState.currentStep);
+        }
+      } else {
+        tvBroadcastState.isPaused = true;
+        btn.textContent = "▶ Tiếp tục";
+        if (eqEl) eqEl.classList.remove("active");
+        if (window.speechSynthesis) {
+          window.speechSynthesis.pause();
+        }
+      }
+    });
+
+    document.getElementById("btn-tv-next-step").addEventListener("click", () => {
+      if (!tvBroadcastState.isActive) return;
+      tvBroadcastState.isPaused = false;
+      playTvSegment(tvBroadcastState.currentStep + 1);
+    });
+
+    document.getElementById("btn-tv-prev-step").addEventListener("click", () => {
+      if (!tvBroadcastState.isActive) return;
+      tvBroadcastState.isPaused = false;
+      playTvSegment(Math.max(0, tvBroadcastState.currentStep - 1));
+    });
+
+    document.getElementById("btn-tv-speed").addEventListener("click", (e) => {
+      const speeds = [1.0, 1.15, 0.85];
+      const curIdx = speeds.indexOf(tvBroadcastState.speechRate);
+      const nextRate = speeds[(curIdx + 1) % speeds.length];
+      tvBroadcastState.speechRate = nextRate;
+      e.target.textContent = `${nextRate.toFixed(nextRate === 1.0 ? 1 : 2)}x`;
+      showLiveSyncToast(`⚡ Tốc độ giọng đọc TV: ${nextRate}x`);
+      if (tvBroadcastState.isActive && !tvBroadcastState.isPaused) {
+        playTvSegment(tvBroadcastState.currentStep);
+      }
+    });
+
+    document.getElementById("btn-speak-active-point").addEventListener("click", () => {
+      if (activePointId) {
+        speakSingleWeatherPoint(activePointId);
+      } else {
+        speakSingleWeatherPoint(6);
+      }
+    });
+
+    // Lắng nghe sự kiện bấm nút phát thanh viên trong popup hoặc thẻ danh sách
+    document.body.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-speak-id]");
+      if (btn) {
+        e.stopPropagation();
+        const ptId = Number(btn.dataset.speakId);
+        if (ptId) {
+          speakSingleWeatherPoint(ptId);
+        }
+      }
+    });
+
+    // =========================================================================
+    // KHỞI CHẠY BAN ĐẦU
+    // =========================================================================
+    window.addEventListener("load", () => {
+      map.invalidateSize({ animate: false });
+      renderSynchronizedBaseMap();
+      try {
+        const savedUrl = localStorage.getItem(STORAGE_KEY_SHEET_URL);
+        if (savedUrl && document.getElementById("input-sheet-url")) {
+          document.getElementById("input-sheet-url").value = savedUrl;
+        }
+        const savedPts = localStorage.getItem(STORAGE_KEY_POINTS);
+        if (savedPts) {
+          const parsed = JSON.parse(savedPts);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            WEATHER_POINTS = parsed;
+          }
+        }
+        lastSheetSignature = JSON.stringify(WEATHER_POINTS);
+      } catch (e) {}
+
+      initWindParticles();
+      animateWind();
+      renderSidebarAndTable();
+      restartAutoPollTimer();
+      syncFromGoogleSheet(false);
+
+      setTimeout(() => {
+        map.invalidateSize({ animate: false });
+        renderSynchronizedBaseMap();
+        resizeWindCanvas();
+      }, 250);
+
+      // Giữ góc nhìn toàn cảnh chữ S Việt Nam & Biển Đông trong 1.8 giây trước khi bay vào điểm Tuy Hòa (Đắk Lắk)
+      setTimeout(() => {
+        map.invalidateSize({ animate: false });
+        flyCameraHighToLow(6, false);
+      }, 1800);
+    });
+  </script>
+</body>
+</html>
