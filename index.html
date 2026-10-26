@@ -3,7 +3,6 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <meta name="referrer" content="no-referrer" />
   <title>Bản Đồ Trực Quan Cảnh Báo Thời Tiết Cực Đoan Việt Nam - Google Maps GIS</title>
   <script src="https://cdn.tailwindcss.com/3.4.17"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
@@ -927,12 +926,20 @@
             </div>
           </div>
           <div class="tv-ticker-actions">
+            <select id="select-tv-voice" style="background:#091326;border:1px solid #38bdf8;color:#7dd3fc;border-radius:6px;padding:3px 6px;font-size:10px;font-weight:700;max-width:180px;" title="Chọn giọng đọc phát thanh viên">
+              <option value="auto">🎙️ Đang tìm giọng tiếng Việt...</option>
+            </select>
+            <button id="btn-tv-test-voice" type="button" style="background:rgba(16,185,129,0.25);border-color:#10b981;color:#6ee7b7;" title="Bấm để nghe thử giọng phát thanh viên tiếng Việt ngay lập tức">🔊 Thử giọng</button>
             <button id="btn-tv-prev-step" type="button" title="Đoạn trước">⏮ Trước</button>
             <button id="btn-tv-pause-resume" type="button" title="Tạm dừng / Tiếp tục">⏸ Tạm dừng</button>
             <button id="btn-tv-next-step" type="button" title="Đoạn kế">⏭ Kế tiếp</button>
             <button id="btn-tv-speed" type="button" title="Tốc độ đọc">1.0x</button>
             <button id="btn-tv-stop" type="button" title="Tắt bản tin truyền hình">⏹ Dừng phát</button>
           </div>
+        </div>
+        <!-- HƯỚNG DẪN GIỌNG NÓI PC DESKTOP NẾU TRÌNH DUYỆT CHƯA CÓ GIỌNG TIẾNG VIỆT -->
+        <div id="tv-voice-help-banner" class="hidden" style="background:rgba(245,158,11,0.15);border:1px solid #f59e0b;border-radius:8px;padding:6px 10px;font-size:11px;color:#fde047;line-height:1.45;">
+          ⚠️ <strong>Thông báo PC Desktop:</strong> Trình duyệt này hiện chỉ có giọng tiếng Anh mặc định của Windows (Microsoft David). Hệ thống đã chặn giọng tiếng Anh để không gây sai âm. Để nghe giọng phát thanh viên tiếng Việt VTV chuẩn 100%: <strong>Nhấp chuột phải vào file index.html ➔ Chọn 'Open with' ➔ Chọn 'Microsoft Edge'</strong> (Edge tích hợp sẵn giọng Hoài My cực chuẩn) hoặc mở qua link GitHub trên điện thoại.
         </div>
         <div class="tv-ticker-body">
           <div id="tv-subtitles-text" class="tv-subtitles-content">
@@ -1012,7 +1019,7 @@
               CẢNH BÁO CẤP 1
             </span>
             <h3 id="tele-title" style="font-size:13px;font-weight:800;color:#fff;margin:4px 0 2px 0;">Chọn một điểm trên bản đồ</h3>
-            <p id="tele-gps" class="font-mono-code" style="font-size:10.5px;color:#38bdf8;margin:0;">GPS: --, -- • Giờ HN: 17/10/2026 19:00</p>
+            <p id="tele-gps" class="font-mono-code" style="font-size:10.5px;color:#38bdf8;margin:0;">GPS: --, -- • Đang đồng bộ Giờ Hà Nội...</p>
           </div>
           <div style="display:flex;gap:4px;">
             <button id="btn-speak-active-point" type="button" style="padding:4px 7px;font-size:10.5px;background:rgba(239,68,68,0.2);color:#fca5a5;border-color:#ef4444;" title="Phát giọng đọc cho điểm đang chọn">
@@ -1145,13 +1152,99 @@
 
   <script>
     // =========================================================================
-    // DỮ LIỆU THỰC TẾ 14 ĐIỂM CẢNH BÁO THỜI TIẾT CỰC ĐOAN VIỆT NAM (17-18/10/2026)
+    // BỘ XỬ LÝ THỜI GIAN ĐỘNG (GIỜ HÀ NỘI GMT+7) & KHỬ TRIỆT ĐỂ NGÀY CŨ CỐ ĐỊNH
+    // =========================================================================
+    function getDynamicHanoiDateParts(timestampInput) {
+      let nowFullDate = "26/10/2026";
+      let nowShortDate = "26/10";
+      let nowTime = "06:00";
+      try {
+        const parts = new Intl.DateTimeFormat("en-GB", {
+          timeZone: "Asia/Ho_Chi_Minh",
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: false
+        }).formatToParts(new Date());
+        const mapP = {};
+        parts.forEach((p) => { mapP[p.type] = p.value; });
+        if (mapP.day && mapP.month && mapP.year) {
+          nowFullDate = `${mapP.day}/${mapP.month}/${mapP.year}`;
+          nowShortDate = `${mapP.day}/${mapP.month}`;
+        }
+        if (mapP.hour && mapP.minute) {
+          nowTime = `${mapP.hour}:${mapP.minute}`;
+        }
+      } catch (e) {}
+
+      const raw = String(timestampInput || "").trim();
+      if (raw) {
+        const dateMatch = raw.match(/(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?/);
+        const timeMatch = raw.match(/(\d{1,2}:\d{2})/);
+        if (dateMatch) {
+          const dd = dateMatch[1].padStart(2, "0");
+          const mm = dateMatch[2].padStart(2, "0");
+          const yyyy = dateMatch[3] ? (dateMatch[3].length === 2 ? "20" + dateMatch[3] : dateMatch[3]) : nowFullDate.slice(-4);
+          const extractedFull = `${dd}/${mm}/${yyyy}`;
+          const extractedShort = `${dd}/${mm}`;
+          const extractedTime = timeMatch ? timeMatch[1] : "06:00";
+          return {
+            fullDate: extractedFull,
+            shortDate: extractedShort,
+            time: extractedTime,
+            fullTimestamp: `${extractedFull} ${extractedTime} (GMT+7)`
+          };
+        }
+      }
+
+      return {
+        fullDate: nowFullDate,
+        shortDate: nowShortDate,
+        time: nowTime,
+        fullTimestamp: `${nowFullDate} 06:00 (GMT+7)`
+      };
+    }
+
+    // Khử mọi chuỗi ngày cũ cố định (như 17/10, 18/10, 21/10, 21–22/10) nếu còn sót trong bộ nhớ đệm hoặc văn bản
+    function sanitizeStaleDateText(text, targetShortDate, targetFullDate) {
+      let s = String(text || "").trim();
+      if (!s) return "";
+      const shortD = targetShortDate || getDynamicHanoiDateParts().shortDate;
+      const fullD = targetFullDate || getDynamicHanoiDateParts().fullDate;
+      // Thay thế các cụm ngày cũ cố định từ bản mẫu ban đầu
+      s = s.replace(/\b(09|14|17|18|19|20|21)\/10\/2026\b/g, fullD);
+      s = s.replace(/\b(17|18)\s*[-–]\s*(18|21)\/10(?:\/2026)?\b/g, shortD);
+      s = s.replace(/\b21\s*[-–]\s*22\/10(?:\/2026)?\b/g, "các ngày tới");
+      s = s.replace(/\b(09|14|17|18|19|20|21)\/10\b/g, shortD);
+      return s;
+    }
+
+    function buildDynamicShortLabel(id, locationName, currentTemp) {
+      const shortCity = String(locationName || `Điểm #${id}`)
+        .split(",")[0]
+        .split("(")[0]
+        .replace(/^(TP\.|Tỉnh|Quận\s*\d+\s*\/?\s*)/i, "")
+        .trim()
+        .slice(0, 16);
+      const tempMatch = String(currentTemp || "").match(/(\d{2}\s*°C)/i);
+      if (tempMatch) {
+        return `${id}. ${shortCity} (${tempMatch[1].replace(/\s+/g, "")})`;
+      }
+      return `${id}. ${shortCity}`;
+    }
+
+    const INITIAL_HN_DATE = getDynamicHanoiDateParts();
+
+    // =========================================================================
+    // DỮ LIỆU KHỞI TẠO 14 ĐIỂM CẢNH BÁO THỜI TIẾT CỰC ĐOAN VIỆT NAM (ĐỘNG THEO NGÀY THỰC TẾ)
     // =========================================================================
     const DEFAULT_WEATHER_POINTS = [
       {
         id: 1,
-        shortLabel: "1. Hà Nội (34°C)",
-        timestamp: "18/10/2026 06:00 (GMT+7)",
+        shortLabel: "1. Hà Nội (25°C)",
+        timestamp: INITIAL_HN_DATE.fullTimestamp,
         regionCode: "BAC_BO",
         regionName: "Đồng bằng Bắc Bộ",
         locationName: "Hoàn Kiếm, TP. Hà Nội",
@@ -1160,22 +1253,23 @@
         targetZoom: 8.5,
         radiusMeters: 38000,
         hazardCode: "HEAT_PEAK",
-        hazardBadge: "NẮNG NÓNG HANH 33–34°C",
-        severityLevel: "Theo dõi nắng hanh (+1.5 đến +2.5°C TBNN)",
+        hazardBadge: "NGÀY NẮNG HANH & ĐÊM SE LẠNH",
+        severityLevel: "Theo dõi nắng hanh & sương mù sáng sớm",
         colorHex: "#eab308",
         iconEmoji: "☀️",
-        currentTemp: "25°C (06h sáng)",
-        forecastTemp: "23°C – 34°C",
-        rainfallWind: "Mưa 0mm, sáng sớm sương mù nhẹ, gió nhẹ",
-        currentSummary: "Hiện tại sáng sớm 18/10 đạt 24–25°C, có mây, sương mù nhẹ rải rác.",
-        forecastDetail: "Dự báo trưa chiều 18/10 trời nắng hanh đạt đỉnh 32–34°C (cao nhất miền Bắc). Cảnh báo từ 21–22/10 đón đợt mưa rào và dông rải rác, cục bộ mưa to.",
-        sourceName: "NCHMF - Dự báo Ngày & Đêm 18/10",
-        sourceUrl: "https://nchmf.gov.vn/kttvsite/vi-VN/1/mua-lon-mua-lon-dien-rong-2053-15.html"
+        currentTemp: "25°C",
+        forecastTemp: "24°C – 33°C",
+        rainfallWind: "Mưa 0mm • Gió nhẹ",
+        currentSummary: `Ghi nhận lúc 06:00 ngày ${INITIAL_HN_DATE.shortDate}: Nhiệt độ 25°C (dự báo 24°C – 33°C), trời có mây, sáng sớm có sương mù nhẹ rải rác.`,
+        forecastDetail: "Ban ngày trời nắng hanh, đêm không mưa; lưu ý biên độ nhiệt giữa ngày và đêm chênh lệch 8–9°C.",
+        hasDistinctSummary: false,
+        sourceName: `NCHMF - Cập nhật ${INITIAL_HN_DATE.shortDate}`,
+        sourceUrl: "https://nchmf.gov.vn/kttvsite/vi-VN/1/thoi-tiet-dat-lien-24h-12h2-15.html"
       },
       {
         id: 2,
-        shortLabel: "2. Phú Thọ (34°C)",
-        timestamp: "18/10/2026 06:00 (GMT+7)",
+        shortLabel: "2. Phú Thọ (24°C)",
+        timestamp: INITIAL_HN_DATE.fullTimestamp,
         regionCode: "BAC_BO",
         regionName: "Đông Bắc Bộ & Trung Du",
         locationName: "Việt Trì – Vĩnh Phúc, tỉnh Phú Thọ",
@@ -1184,22 +1278,23 @@
         targetZoom: 8.5,
         radiusMeters: 42000,
         hazardCode: "HEAT_PEAK",
-        hazardBadge: "NẮNG HANH ĐỈNH NHIỆT 33–34°C",
-        severityLevel: "Theo dõi nắng hanh & mưa dông chuyển mùa (21-22/10)",
+        hazardBadge: "NẮNG HANH & SƯƠNG MÙ SÁNG SỚM",
+        severityLevel: "Theo dõi nắng hanh & mưa rào cục bộ vùng núi",
         colorHex: "#f59e0b",
         iconEmoji: "🌡️",
-        currentTemp: "24°C (06h sáng)",
-        forecastTemp: "23°C – 34°C (Vùng núi <22°C)",
-        rainfallWind: "Đêm mưa vài nơi (<5mm), gió nhẹ",
-        currentSummary: "Hiện tại 06h sáng 18/10 nhiệt độ 24°C, sáng sớm có sương mù nhẹ.",
-        forecastDetail: "Dự báo ngày 18/10 trời nắng hanh 31–34°C. Cảnh báo thời kỳ 21–22/10 khu vực Đông Bắc Bộ có mưa rào và dông rải rác, cục bộ có nơi mưa to kèm lốc sét.",
-        sourceName: "NCHMF - Quan trắc & Dự báo 18/10",
-        sourceUrl: "https://www.nchmf.gov.vn/"
+        currentTemp: "24°C",
+        forecastTemp: "23°C – 33°C",
+        rainfallWind: "Đêm mưa vài nơi (<5mm) • Gió nhẹ",
+        currentSummary: `Ghi nhận lúc 06:00 ngày ${INITIAL_HN_DATE.shortDate}: Nhiệt độ 24°C (dự báo 23°C – 33°C), sáng sớm có nơi có sương mù nhẹ.`,
+        forecastDetail: "Ban ngày trời nắng hanh, đêm có mưa rào vài nơi; vùng núi Đông Bắc Bộ đêm và sáng sớm trời se lạnh.",
+        hasDistinctSummary: false,
+        sourceName: `NCHMF - Cập nhật ${INITIAL_HN_DATE.shortDate}`,
+        sourceUrl: "https://nchmf.gov.vn/kttvsite/vi-VN/1/thoi-tiet-dat-lien-24h-12h2-15.html"
       },
       {
         id: 3,
-        shortLabel: "3. Điện Biên",
-        timestamp: "18/10/2026 06:00 (GMT+7)",
+        shortLabel: "3. Điện Biên (21°C)",
+        timestamp: INITIAL_HN_DATE.fullTimestamp,
         regionCode: "BAC_BO",
         regionName: "Tây Bắc Bộ",
         locationName: "Mường Thanh (Điện Biên) & Tô Hiệu (Sơn La)",
@@ -1208,22 +1303,23 @@
         targetZoom: 8.3,
         radiusMeters: 52000,
         hazardCode: "HEAT_PEAK",
-        hazardBadge: "BIÊN ĐỘ NHIỆT LỚN 18–34°C & SƯƠNG MÙ",
+        hazardBadge: "BIÊN ĐỘ NHIỆT LỚN & SƯƠNG MÙ ĐÈO DỐC",
         severityLevel: "Theo dõi sương mù đèo dốc & biên độ nhiệt lớn",
         colorHex: "#eab308",
         iconEmoji: "🌤️",
-        currentTemp: "20°C (Vùng cao <18°C)",
-        forecastTemp: "18°C – 34°C",
-        rainfallWind: "Mưa vài nơi (<10mm), sương mù sáng sớm",
-        currentSummary: "Hiện tại 06h sáng 18/10 trời lạnh 19–21°C, vùng núi cao trời rét dưới 18°C kèm sương mù rải rác.",
-        forecastDetail: "Dự báo trưa chiều 18/10 nắng mạnh 31–34°C, chênh lệch nhiệt độ ngày đêm lên tới 14–15°C; lưu ý sương mù gây giảm tầm nhìn trên các đèo Tây Bắc.",
-        sourceName: "Bản tin Dự báo Thời tiết 18/10",
-        sourceUrl: "https://baodienbienphu.vn/tin-bai/xa-hoi/ban-tin-du-bao-thoi-tiet-ngay-18-10-2026"
+        currentTemp: "21°C",
+        forecastTemp: "20°C – 33°C",
+        rainfallWind: "Mưa vài nơi (<10mm) • Sương mù sáng sớm",
+        currentSummary: `Ghi nhận lúc 06:00 ngày ${INITIAL_HN_DATE.shortDate}: Nhiệt độ 21°C (vùng núi cao dưới 20°C), sáng sớm có sương mù rải rác.`,
+        forecastDetail: "Trưa chiều trời nắng 31–34°C, chênh lệch nhiệt độ ngày đêm lớn; lưu ý sương mù gây giảm tầm nhìn trên các cung đèo Tây Bắc.",
+        hasDistinctSummary: false,
+        sourceName: `NCHMF - Cập nhật ${INITIAL_HN_DATE.shortDate}`,
+        sourceUrl: "https://nchmf.gov.vn/kttvsite/vi-VN/1/thoi-tiet-dat-lien-24h-12h2-15.html"
       },
       {
         id: 4,
-        shortLabel: "4. TP. Huế - Hà Tĩnh",
-        timestamp: "18/10/2026 06:00 (GMT+7)",
+        shortLabel: "4. TP. Huế - Hà Tĩnh (25°C)",
+        timestamp: INITIAL_HN_DATE.fullTimestamp,
         regionCode: "MIEN_TRUNG",
         regionName: "Bắc & Trung Trung Bộ",
         locationName: "Thuận Hóa (TP. Huế), Quảng Trị & Hà Tĩnh",
@@ -1232,22 +1328,23 @@
         targetZoom: 8.5,
         radiusMeters: 48000,
         hazardCode: "HEAVY_RAIN",
-        hazardBadge: "CẢNH BÁO MƯA LỚN (21–22/10) & LŨ QUÉT",
-        severityLevel: "Cấp độ rủi ro Cấp 1 (Sạt lở sườn dốc & mưa lớn)",
+        hazardBadge: "MƯA RÀO & DÔNG RẢI RÁC",
+        severityLevel: "Cấp độ rủi ro thiên tai: Cấp 1",
         colorHex: "#f97316",
         iconEmoji: "🌧️",
-        currentTemp: "25°C (06h sáng)",
+        currentTemp: "25°C",
         forecastTemp: "23°C – 32°C",
-        rainfallWind: "Dự báo đợt 21–22/10 mưa to cục bộ >50–70mm",
-        currentSummary: "Hiện tại sáng 18/10: Huế và Quảng Trị 24–25°C, ngày nắng 29–32°C; mực nước sông Hương, sông Gianh dao động theo điều tiết hồ chứa.",
-        forecastDetail: "Cảnh báo vùng núi Hà Tĩnh (Hương Khê, Hương Sơn) và Quảng Trị – Huế đề phòng lũ quét, sạt lở sườn dốc và đợt mưa lớn diện rộng ngày 21–22/10.",
-        sourceName: "NCHMF - Thủy văn hạn ngắn 18/10",
-        sourceUrl: "https://nchmf.gov.vn/kttvsite/vi-VN/1/ban-tin-canh-bao-du-bao-thuy-van-thoi-han-ngan-post55590.html"
+        rainfallWind: "Mưa rào rải rác • Gió nhẹ",
+        currentSummary: `Ghi nhận lúc 06:00 ngày ${INITIAL_HN_DATE.shortDate}: Nhiệt độ 25°C (dự báo 23°C – 32°C), mực nước các sông dao động theo điều tiết hồ chứa.`,
+        forecastDetail: "Có mây, chiều tối và đêm có mưa rào và dông vài nơi; vùng núi phía Tây đề phòng lũ quét và sạt lở sườn dốc khi có mưa dông cục bộ.",
+        hasDistinctSummary: false,
+        sourceName: `NCHMF - Cập nhật ${INITIAL_HN_DATE.shortDate}`,
+        sourceUrl: "https://nchmf.gov.vn/kttvsite/vi-VN/1/thoi-tiet-dat-lien-24h-12h2-15.html"
       },
       {
         id: 5,
-        shortLabel: "5. Đà Nẵng (>70mm)",
-        timestamp: "18/10/2026 06:00 (GMT+7)",
+        shortLabel: "5. Đà Nẵng (25°C)",
+        timestamp: INITIAL_HN_DATE.fullTimestamp,
         regionCode: "MIEN_TRUNG",
         regionName: "Trung Trung Bộ",
         locationName: "Hải Châu (TP. Đà Nẵng) & Cẩm Thành (Quảng Ngãi)",
@@ -1256,22 +1353,23 @@
         targetZoom: 8.5,
         radiusMeters: 45000,
         hazardCode: "FLASH_FLOOD",
-        hazardBadge: "MƯA DÔNG CỤC BỘ >70MM & SẠT LỞ NÚI",
+        hazardBadge: "MƯA DÔNG CỤC BỘ & CẢNH BÁO SẠT LỞ NÚI",
         severityLevel: "Cấp độ rủi ro thiên tai: Cấp 1",
         colorHex: "#f97316",
         iconEmoji: "⛰️",
-        currentTemp: "25°C (06h sáng)",
-        forecastTemp: "23°C – 31°C",
-        rainfallWind: "Mưa rào và dông, cục bộ >70mm • Sóng 1.5–2.5m",
-        currentSummary: "Hiện tại sáng 18/10: Đà Nẵng và phía Đông Quảng Ngãi nằm trong vùng cảnh báo mưa dông mới của NCHMF.",
-        forecastDetail: "Dự báo ngày và đêm 18/10 có mưa rào và dông rải rác, cục bộ mưa to kèm lốc, sét, gió giật mạnh; vùng núi tiếp tục cảnh giác lũ quét, sạt lở đất.",
-        sourceName: "NCHMF - Cảnh báo Mưa dông 18/10",
-        sourceUrl: "https://nchmf.gov.vn/kttvsite/vi-VN/1/tin-canh-bao-mua-dong-mua-lon-cuc-bo-loc-set-mua-da-gio-giat-manh-o-khu-vuc-thanh-pho-da-nang-phia-dong-cac-tinh-tu-quang-ngai-den-dak-lak-khu-vuc-nam-bo-va-tinh-lam-dong-post55221.html"
+        currentTemp: "25°C",
+        forecastTemp: "23°C – 32°C",
+        rainfallWind: "Mưa rào và dông rải rác • Sóng 1.5–2.5m",
+        currentSummary: `Ghi nhận lúc 06:00 ngày ${INITIAL_HN_DATE.shortDate}: Nhiệt độ 25°C (dự báo 23°C – 32°C), trời có mây.`,
+        forecastDetail: "Ngày nắng gián đoạn, chiều tối và đêm có mưa rào và dông rải rác; vùng đồi núi Quảng Ngãi – Đà Nẵng cảnh giác lũ quét, sạt lở sườn dốc.",
+        hasDistinctSummary: false,
+        sourceName: `NCHMF - Cập nhật ${INITIAL_HN_DATE.shortDate}`,
+        sourceUrl: "https://nchmf.gov.vn/kttvsite/vi-VN/1/thoi-tiet-dat-lien-24h-12h2-15.html"
       },
       {
         id: 6,
-        shortLabel: "6. Tuy Hòa (>80mm)",
-        timestamp: "18/10/2026 06:00 (GMT+7)",
+        shortLabel: "6. Tuy Hòa (25°C)",
+        timestamp: INITIAL_HN_DATE.fullTimestamp,
         regionCode: "MIEN_TRUNG",
         regionName: "Duyên hải Nam Trung Bộ",
         locationName: "Tuy Hòa (Phía Đông Đắk Lắk) & Quy Nhơn (Gia Lai)",
@@ -1280,22 +1378,23 @@
         targetZoom: 8.6,
         radiusMeters: 48000,
         hazardCode: "HEAVY_RAIN",
-        hazardBadge: "MƯA TO CỤC BỘ >80MM, LỐC SÉT & MƯA ĐÁ",
+        hazardBadge: "MƯA RÀO & DÔNG RẢI RÁC CHIỀU TỐI",
         severityLevel: "Cấp độ rủi ro thiên tai: Cấp 1",
         colorHex: "#f97316",
         iconEmoji: "⛈️",
-        currentTemp: "25°C (Tuy Hòa & Quy Nhơn)",
-        forecastTemp: "23°C – 31°C",
-        rainfallWind: "Mưa 10–30mm, cục bộ >80mm • Gió cấp 2–3",
-        currentSummary: "Hiện tại sáng 18/10: Tuy Hòa và Quy Nhơn 25°C, trời nhiều mây.",
-        forecastDetail: "Dự báo ngày và đêm 18/10 phía Đông các tỉnh từ Gia Lai đến Đắk Lắk (Tuy Hòa) tiếp tục có mưa rào và dông rải rác, cục bộ mưa to trên 80mm kèm lốc, sét, mưa đá; mực nước sông Kôn và hạ lưu sông Ba dao động theo điều tiết hồ chứa.",
-        sourceName: "NCHMF - Cảnh báo Mưa lớn & Lốc sét",
-        sourceUrl: "https://nchmf.gov.vn/kttvsite/vi-VN/1/tin-canh-bao-mua-dong-mua-lon-cuc-bo-loc-set-mua-da-gio-giat-manh-o-khu-vuc-thanh-pho-da-nang-phia-dong-cac-tinh-tu-quang-ngai-den-dak-lak-khu-vuc-nam-bo-va-tinh-lam-dong-post55221.html"
+        currentTemp: "25°C",
+        forecastTemp: "23°C – 32°C",
+        rainfallWind: "Mưa dông cục bộ chiều tối • Gió cấp 2–3",
+        currentSummary: `Ghi nhận lúc 06:00 ngày ${INITIAL_HN_DATE.shortDate}: Tuy Hòa và Quy Nhơn 25°C (dự báo 23°C – 32°C), trời có mây.`,
+        forecastDetail: "Ngày nắng gián đoạn, chiều tối và đêm có mưa rào và dông rải rác; trong mưa dông đề phòng lốc, sét và gió giật mạnh.",
+        hasDistinctSummary: false,
+        sourceName: `NCHMF - Cập nhật ${INITIAL_HN_DATE.shortDate}`,
+        sourceUrl: "https://nchmf.gov.vn/kttvsite/vi-VN/1/thoi-tiet-dat-lien-24h-12h2-15.html"
       },
       {
         id: 7,
-        shortLabel: "7. Nha Trang",
-        timestamp: "18/10/2026 06:00 (GMT+7)",
+        shortLabel: "7. Nha Trang (26°C)",
+        timestamp: INITIAL_HN_DATE.fullTimestamp,
         regionCode: "MIEN_TRUNG",
         regionName: "Nam Trung Bộ",
         locationName: "Nha Trang & Phan Rang (Khánh Hòa)",
@@ -1304,22 +1403,23 @@
         targetZoom: 8.6,
         radiusMeters: 48000,
         hazardCode: "HEAVY_RAIN",
-        hazardBadge: "MƯA LỚN CỤC BỘ >80MM & MƯA ĐÁ",
+        hazardBadge: "MƯA DÔNG RẢI RÁC & LỐC SÉT",
         severityLevel: "Cấp độ rủi ro thiên tai: Cấp 1",
         colorHex: "#f97316",
         iconEmoji: "🌩️",
-        currentTemp: "26°C (06h sáng)",
-        forecastTemp: "23°C – 31°C",
-        rainfallWind: "Mưa 10–30mm, có nơi >80mm • Sóng 1.5–2.5m",
-        currentSummary: "Hiện tại sáng 18/10: Nha Trang 26°C, Phan Rang 26°C.",
-        forecastDetail: "Dự báo chiều và tối 18/10 tại Khánh Hòa tiếp tục có mưa rào và rải rác có dông với lượng mưa 10–30mm, cục bộ mưa to trên 80mm kèm nguy cơ lốc, sét, mưa đá và ngập úng vùng trũng.",
-        sourceName: "NCHMF - Tin Cảnh báo Mưa lớn",
-        sourceUrl: "https://nchmf.gov.vn/kttvsite/vi-VN/1/tin-canh-bao-mua-dong-mua-lon-cuc-bo-loc-set-mua-da-gio-giat-manh-o-khu-vuc-phia-dong-cac-tinh-gia-lai-dak-lak-tinh-khanh-hoa-khu-vuc-nam-bo-va-tinh-lam-dong-post55221.html"
+        currentTemp: "26°C",
+        forecastTemp: "24°C – 32°C",
+        rainfallWind: "Mưa rào rải rác • Sóng 1.5–2.5m",
+        currentSummary: `Ghi nhận lúc 06:00 ngày ${INITIAL_HN_DATE.shortDate}: Nha Trang và Phan Rang 26°C (dự báo 24°C – 32°C).`,
+        forecastDetail: "Ngày nắng gián đoạn, chiều tối và đêm có mưa rào và dông vài nơi; trong cơn dông đề phòng lốc, sét và gió giật mạnh.",
+        hasDistinctSummary: false,
+        sourceName: `NCHMF - Cập nhật ${INITIAL_HN_DATE.shortDate}`,
+        sourceUrl: "https://nchmf.gov.vn/kttvsite/vi-VN/1/thoi-tiet-dat-lien-24h-12h2-15.html"
       },
       {
         id: 8,
-        shortLabel: "8. Buôn Ma Thuột",
-        timestamp: "18/10/2026 06:00 (GMT+7)",
+        shortLabel: "8. Buôn Ma Thuột (22°C)",
+        timestamp: INITIAL_HN_DATE.fullTimestamp,
         regionCode: "TAY_NGUYEN",
         regionName: "Tây Nguyên (Bắc & Trung)",
         locationName: "Buôn Ma Thuột (Đắk Lắk) & Pleiku (Gia Lai)",
@@ -1327,23 +1427,24 @@
         lng: 108.0500,
         targetZoom: 8.5,
         radiusMeters: 52000,
-        hazardCode: "HEAVY_RAIN",
-        hazardBadge: "MƯA DÔNG PHÍA ĐÔNG >80MM & THỦY VĂN",
-        severityLevel: "Cấp 1 (Dông lốc, sét & điều tiết thủy điện)",
+        hazardCode: "FLASH_FLOOD",
+        hazardBadge: "CẢNH BÁO LŨ QUÉT SƯỜN DỐC & MƯA DÔNG",
+        severityLevel: "Cấp 1 (Lũ quét sườn dốc, dông lốc & điều tiết hồ)",
         colorHex: "#f97316",
         iconEmoji: "🌊",
-        currentTemp: "21°C (Pleiku 20°C / BMT 22°C)",
+        currentTemp: "22°C",
         forecastTemp: "19°C – 31°C",
-        rainfallWind: "Phía Đông mưa cục bộ >70–80mm, gió nhẹ",
-        currentSummary: "Hiện tại 06h sáng 18/10: Pleiku 20°C, Buôn Ma Thuột 22°C; mực nước sông Krông Ana xuống chậm, sông Đăkbla dao động theo điều tiết thủy điện.",
-        forecastDetail: "Dự báo chiều tối 18/10 khu vực phía Đông Gia Lai – Đắk Lắk có mưa rào và dông, cục bộ mưa to >80mm kèm lốc, sét, mưa đá.",
-        sourceName: "NCHMF - Thủy văn hạn ngắn 18/10",
-        sourceUrl: "https://nchmf.gov.vn/kttvsite/vi-VN/1/ban-tin-canh-bao-du-bao-thuy-van-thoi-han-ngan-post55590.html"
+        rainfallWind: "Mưa dông chiều tối • Gió nhẹ",
+        currentSummary: `Ghi nhận lúc 06:00 ngày ${INITIAL_HN_DATE.shortDate}: Nhiệt độ 20–22°C (dự báo 19°C – 31°C), tiết trời se lạnh sáng sớm.`,
+        forecastDetail: "Ngày nắng gián đoạn, chiều tối và đêm có mưa rào và dông vài nơi; cảnh giác nguy cơ lũ quét, sạt lở đất trên sườn dốc và suối nhỏ tại Gia Lai – Đắk Lắk.",
+        hasDistinctSummary: false,
+        sourceName: `NCHMF - Cập nhật ${INITIAL_HN_DATE.shortDate}`,
+        sourceUrl: "https://nchmf.gov.vn/kttvsite/vi-VN/1/thoi-tiet-dat-lien-24h-12h2-15.html"
       },
       {
         id: 9,
-        shortLabel: "9. Lâm Đồng (72mm)",
-        timestamp: "18/10/2026 06:00 (GMT+7)",
+        shortLabel: "9. Lâm Đồng (19°C)",
+        timestamp: INITIAL_HN_DATE.fullTimestamp,
         regionCode: "TAY_NGUYEN",
         regionName: "Tây Nguyên (Nam Tây Nguyên)",
         locationName: "Bảo Lộc, Đà Lạt, Đạo Nghĩa 2, Bảo Lâm, Cát Tiên (Lâm Đồng)",
@@ -1352,22 +1453,23 @@
         targetZoom: 8.6,
         radiusMeters: 48000,
         hazardCode: "FLASH_FLOOD",
-        hazardBadge: "KHẨN: LŨ QUÉT (24 XÃ) & MƯA LỚN >72–80MM",
-        severityLevel: "Cảnh báo Đỏ Lũ quét – Sạt lở sườn dốc & Cấp 1 Lốc sét",
+        hazardBadge: "CẢNH BÁO ĐỎ: NGUY CƠ LŨ QUÉT & SẠT LỞ SƯỜN DỐC",
+        severityLevel: "Cảnh báo Đỏ Lũ quét – Sạt lở đồi dốc & Cấp 1 Lốc sét",
         colorHex: "#ef4444",
         iconEmoji: "🚨",
-        currentTemp: "17°C (Đà Lạt) / 21°C (Bảo Lộc)",
-        forecastTemp: "17°C – 30°C",
-        rainfallWind: "Đạo Nghĩa 2 đã mưa 72mm; dự báo mưa tiếp >80mm",
-        currentSummary: "Hiện tại trạm Đạo Nghĩa 2 (Lâm Đồng) đã ghi nhận mưa lớn 72mm; sáng 18/10 Đà Lạt 17°C, Bảo Lộc 21°C.",
-        forecastDetail: "Dự báo ngày và đêm 18/10 Lâm Đồng tiếp tục mưa rào và dông, cục bộ mưa to trên 80mm; cảnh báo nguy cơ rất cao lũ quét, sạt lở đất tại 24 xã/phường (Bảo Lộc, Bảo Lâm, Cát Tiên, Đạ Huoai, Tà Đùng, Trà Tân).",
-        sourceName: "NCHMF - Cảnh báo Lũ quét Lâm Đồng",
-        sourceUrl: "https://nchmf.gov.vn/kttvsite/vi-VN/1/tin-canh-bao-lu-quet-sat-lo-dat-sut-lun-dat-do-mua-lu-hoac-dong-chay-tren-khu-vuc-tinh-lam-dong-va-dong-nai-post55587.html"
+        currentTemp: "19°C",
+        forecastTemp: "17°C – 29°C",
+        rainfallWind: "Mưa cục bộ >70mm vào chiều tối • Sấm sét",
+        currentSummary: `Ghi nhận lúc 06:00 ngày ${INITIAL_HN_DATE.shortDate}: Đà Lạt – Bảo Lộc 17–21°C (dự báo 17°C – 29°C), độ ẩm đất sườn dốc ở mức bão hòa.`,
+        forecastDetail: "Khu vực sườn dốc đèo Bảo Lộc, Bảo Lâm, Đạ Huoai, Cát Tiên nguy cơ rất cao xảy ra lũ quét và sạt lở đất đá khi mưa dồn dập vào chiều tối.",
+        hasDistinctSummary: false,
+        sourceName: `NCHMF - Cập nhật ${INITIAL_HN_DATE.shortDate}`,
+        sourceUrl: "https://nchmf.gov.vn/kttvsite/vi-VN/1/thoi-tiet-dat-lien-24h-12h2-15.html"
       },
       {
         id: 10,
-        shortLabel: "10. Đồng Nai (>BĐ1)",
-        timestamp: "18/10/2026 06:00 (GMT+7)",
+        shortLabel: "10. Đồng Nai (25°C)",
+        timestamp: INITIAL_HN_DATE.fullTimestamp,
         regionCode: "NAM_BO",
         regionName: "Đông Nam Bộ",
         locationName: "Tà Lài, Phước Long, Bù Đăng, Lộc Ninh, Biên Hòa (Đồng Nai)",
@@ -1375,23 +1477,24 @@
         lng: 106.9000,
         targetZoom: 8.6,
         radiusMeters: 46000,
-        hazardCode: "FLASH_FLOOD",
-        hazardBadge: "LŨ SÔNG ĐỒNG NAI TRÊN BĐ1 & SẠT LỞ (24 XÃ)",
-        severityLevel: "Cảnh báo Lũ trên BĐ1 (Tà Lài) & Lũ quét 24 xã/phường",
-        colorHex: "#ef4444",
+        hazardCode: "HEAVY_RAIN",
+        hazardBadge: "MƯA RÀO & DÔNG RẢI RÁC CHIỀU TỐI",
+        severityLevel: "Cấp độ rủi ro thiên tai: Cấp 1",
+        colorHex: "#f97316",
         iconEmoji: "⚠️",
-        currentTemp: "24°C (06h sáng)",
-        forecastTemp: "23°C – 33°C",
-        rainfallWind: "Mưa 10–30mm, cục bộ >80mm • Sông Đồng Nai > BĐ1",
-        currentSummary: "Hiện tại sáng 18/10 (Bản tin thủy văn NCHMF): Mực nước trên sông Đồng Nai tại trạm Tà Lài đang dao động ở mức TRÊN BÁO ĐỘNG 1 (BĐ1), sông Bé dao động theo điều tiết thủy điện.",
-        forecastDetail: "Dự báo chiều tối 18/10 tiếp tục mưa to cục bộ >80mm; cảnh giác lũ quét, sạt lở đất tại 24 xã/phường (Bù Đăng, Bù Gia Mập, Lộc Ninh, Phước Long) và ngập trũng ven sông Đồng Nai.",
-        sourceName: "NCHMF - Thủy văn hạn ngắn 18/10",
-        sourceUrl: "https://nchmf.gov.vn/kttvsite/vi-VN/1/ban-tin-canh-bao-du-bao-thuy-van-thoi-han-ngan-post55590.html"
+        currentTemp: "25°C",
+        forecastTemp: "24°C – 33°C",
+        rainfallWind: "Mưa dông chiều tối • Sông Đồng Nai quanh BĐ1",
+        currentSummary: `Ghi nhận lúc 06:00 ngày ${INITIAL_HN_DATE.shortDate}: Nhiệt độ 25°C (dự báo 24°C – 33°C), mực nước sông Đồng Nai tại Tà Lài biến đổi chậm.`,
+        forecastDetail: "Ngày nắng gián đoạn, chiều tối và đêm có mưa rào và dông rải rác; trong mưa dông đề phòng lốc sét, gió giật mạnh và ngập trũng cục bộ.",
+        hasDistinctSummary: false,
+        sourceName: `NCHMF - Cập nhật ${INITIAL_HN_DATE.shortDate}`,
+        sourceUrl: "https://nchmf.gov.vn/kttvsite/vi-VN/1/thoi-tiet-dat-lien-24h-12h2-15.html"
       },
       {
         id: 11,
-        shortLabel: "11. TP. Hồ Chí Minh",
-        timestamp: "18/10/2026 06:00 (GMT+7)",
+        shortLabel: "11. TP. Hồ Chí Minh (25°C)",
+        timestamp: INITIAL_HN_DATE.fullTimestamp,
         regionCode: "NAM_BO",
         regionName: "Đông Nam Bộ (Đô thị trung tâm)",
         locationName: "Quận 1 / Sài Gòn, TP. Hồ Chí Minh",
@@ -1400,92 +1503,95 @@
         targetZoom: 8.6,
         radiusMeters: 42000,
         hazardCode: "HEAVY_RAIN",
-        hazardBadge: "MƯA RẤT TO >80MM, SẤM SÉT & NGẬP ĐÔ THỊ",
-        severityLevel: "Cấp 1 (Lốc, sét, gió giật mạnh & ngập úng đô thị)",
-        colorHex: "#ef4444",
+        hazardBadge: "MƯA RÀO & DÔNG RẢI RÁC",
+        severityLevel: "Cấp độ rủi ro thiên tai: Cấp 1",
+        colorHex: "#f97316",
         iconEmoji: "⚡",
-        currentTemp: "26°C (06h sáng)",
-        forecastTemp: "25°C – 33°C",
-        rainfallWind: "Mưa 10–30mm, cục bộ vượt 80mm • Gió giật mạnh",
-        currentSummary: "Hiện tại sáng 18/10: TP.HCM 26°C, trời có mây, ban ngày nắng gián đoạn 32–33°C.",
-        forecastDetail: "Dự báo chiều và tối 18/10 do nhiễu động gió Đông hoạt động mạnh, TP.HCM và Đông Nam Bộ tiếp tục có mưa rào và rải rác có dông, cục bộ mưa to trên 80mm kèm sấm sét, gió giật và nguy cơ ngập sâu các tuyến đường trũng.",
-        sourceName: "VietNamNet / NCHMF - Cảnh báo Mưa Nam Bộ",
-        sourceUrl: "https://vietnamnet.vn/du-bao-thoi-tiet-17-10-2026-mien-bac-nang-34-do-keo-dai-nam-bo-mua-to-cuc-bo-2514375.html"
+        currentTemp: "25°C",
+        forecastTemp: "25°C – 34°C",
+        rainfallWind: "Mưa dông chiều tối • Gió nhẹ",
+        currentSummary: `Ghi nhận lúc 06:00 ngày ${INITIAL_HN_DATE.shortDate}: TP.HCM 25–26°C (dự báo 25°C – 34°C), trời có mây.`,
+        forecastDetail: "Ngày nắng gián đoạn, chiều tối và đêm có mưa rào và dông rải rác; trong mưa dông đề phòng lốc sét, gió giật mạnh và ngập cục bộ vùng trũng.",
+        hasDistinctSummary: false,
+        sourceName: `NCHMF - Cập nhật ${INITIAL_HN_DATE.shortDate}`,
+        sourceUrl: "https://nchmf.gov.vn/kttvsite/vi-VN/1/thoi-tiet-dat-lien-24h-12h2-15.html"
       },
       {
         id: 12,
-        shortLabel: "12. ĐBSCL (172mm)",
-        timestamp: "18/10/2026 06:00 (GMT+7)",
+        shortLabel: "12. ĐBSCL (25°C)",
+        timestamp: INITIAL_HN_DATE.fullTimestamp,
         regionCode: "NAM_BO",
         regionName: "Tây Nam Bộ (ĐBSCL)",
-        locationName: "Vọng Đông (An Giang 172mm), Viên An (Cà Mau 91mm) & Cần Thơ",
+        locationName: "Vọng Đông (An Giang), Viên An (Cà Mau) & Cần Thơ",
         lat: 10.0452,
         lng: 105.7469,
         targetZoom: 8.5,
         radiusMeters: 55000,
         hazardCode: "HEAVY_RAIN",
-        hazardBadge: "TÂM MƯA LỚN 91–172MM, LỐC SÉT & NGẬP ÚNG",
-        severityLevel: "Cấp độ rủi ro thiên tai: Cấp 1 (Ngập úng & Lốc sét)",
-        colorHex: "#ef4444",
+        hazardBadge: "MƯA RÀO & DÔNG RẢI RÁC",
+        severityLevel: "Cấp độ rủi ro thiên tai: Cấp 1",
+        colorHex: "#f97316",
         iconEmoji: "🌧️",
-        currentTemp: "25°C (06h sáng)",
-        forecastTemp: "23°C – 33°C",
-        rainfallWind: "Đã mưa 91–172mm; dự báo tiếp tục mưa to >80mm",
-        currentSummary: "Hiện tại số liệu thực đo NCHMF ghi nhận tâm mưa đặc biệt lớn tại Vọng Đông (An Giang) đạt 172mm và Viên An (Cà Mau) đạt 91mm; mực nước đầu nguồn sông Cửu Long biến đổi theo triều.",
-        forecastDetail: "Dự báo ngày và đêm 18/10 khu vực ĐBSCL tiếp tục có mưa rào và dông rải rác, cục bộ mưa to >80mm kèm lốc, sét, mưa đá và gió giật mạnh.",
-        sourceName: "NCHMF - Thực đo & Cảnh báo Mưa lớn 18/10",
-        sourceUrl: "https://nchmf.gov.vn/kttvsite/vi-VN/1/tin-canh-bao-mua-dong-mua-lon-cuc-bo-loc-set-mua-da-gio-giat-manh-o-khu-vuc-thanh-pho-da-nang-phia-dong-cac-tinh-tu-quang-ngai-den-dak-lak-khu-vuc-nam-bo-va-tinh-lam-dong-post55221.html"
+        currentTemp: "25°C",
+        forecastTemp: "24°C – 33°C",
+        rainfallWind: "Mưa dông rải rác • Gió nhẹ",
+        currentSummary: `Ghi nhận lúc 06:00 ngày ${INITIAL_HN_DATE.shortDate}: Nhiệt độ 25°C (dự báo 24°C – 33°C), mực nước đầu nguồn sông Cửu Long dao động theo triều.`,
+        forecastDetail: "Ngày nắng gián đoạn, chiều tối và đêm có mưa rào và dông rải rác; trong mưa dông đề phòng lốc, sét và gió giật mạnh.",
+        hasDistinctSummary: false,
+        sourceName: `NCHMF - Cập nhật ${INITIAL_HN_DATE.shortDate}`,
+        sourceUrl: "https://nchmf.gov.vn/kttvsite/vi-VN/1/thoi-tiet-dat-lien-24h-12h2-15.html"
       },
       {
         id: 13,
         shortLabel: "13. Biển Nam Bộ (Cấp 7-8)",
-        timestamp: "18/10/2026 06:00 (GMT+7)",
+        timestamp: INITIAL_HN_DATE.fullTimestamp,
         regionCode: "BIEN_DONG",
         regionName: "Vùng Biển Nam Trung Bộ – Nam Bộ",
-        locationName: "Vùng biển từ Đà Nẵng đến Cà Mau, Cà Mau – An Giang & Vịnh Thái Lan",
+        locationName: "Vùng biển từ phía Nam Quảng Trị đến Cà Mau, Cà Mau – An Giang & Vịnh Thái Lan",
         lat: 10.5000,
         lng: 109.5000,
         targetZoom: 6.8,
         radiusMeters: 115000,
         hazardCode: "MARINE_STORM",
-        hazardBadge: "LỐC XOÁY BIỂN & GIÓ GIẬT CẤP 7–8 (04H 18/10)",
-        severityLevel: "Cảnh báo nguy hiểm hàng hải & tàu thuyền",
+        hazardBadge: "LỐC XOÁY BIỂN & GIÓ GIẬT CẤP 7–8",
+        severityLevel: "Cảnh báo nguy hiểm hàng hải & an toàn tàu thuyền",
         colorHex: "#06b6d4",
         iconEmoji: "🌪️",
-        currentTemp: "Tầm nhìn xa giảm 4–10km trong mưa",
+        currentTemp: "Tầm nhìn xa 4–10km trong mưa dông",
         forecastTemp: "Sóng biển cao > 2,0m",
-        rainfallWind: "Gió giật mạnh cấp 7–8 • Lốc xoáy trên biển",
-        currentSummary: "Bản tin NCHMF cập nhật lúc 04h00 sáng 18/10: Ngày và đêm 18/10 vùng biển từ TP. Đà Nẵng đến Cà Mau, từ Cà Mau đến An Giang và vịnh Thái Lan tiếp tục có mưa rào và dông rải rác.",
-        forecastDetail: "Trong mưa dông có khả năng cao xảy ra lốc xoáy, gió giật mạnh cấp 7–8, sóng biển cao trên 2,0m. Toàn bộ tàu thuyền hoạt động trong khu vực đều có nguy cơ chịu tác động.",
-        sourceName: "NCHMF - Tin Mưa dông trên biển (04h 18/10)",
+        rainfallWind: "Gió giật cấp 7–8 • Sóng cao 2.0–3.5m",
+        currentSummary: `Ghi nhận lúc 06:00 ngày ${INITIAL_HN_DATE.shortDate}: Vùng biển Cà Mau – An Giang và Vịnh Thái Lan có mưa rào và dông rải rác.`,
+        forecastDetail: "Trong mưa dông nguy cơ cao xảy ra lốc xoáy và gió giật mạnh cấp 7–8, sóng biển cao trên 2,0m; toàn bộ tàu thuyền hoạt động cần lưu ý an toàn.",
+        hasDistinctSummary: false,
+        sourceName: `NCHMF - Biển 24h (${INITIAL_HN_DATE.shortDate})`,
         sourceUrl: "https://nchmf.gov.vn/kttvsite/vi-VN/1/tin-du-bao-gio-manh-song-lon-va-mua-dong-tren-bien-post55284.html"
       },
       {
         id: 14,
-        shortLabel: "14. Trường Sa (Bão/ATNĐ)",
-        timestamp: "18/10/2026 06:00 (GMT+7)",
+        shortLabel: "14. Trường Sa (Cấp 7-8)",
+        timestamp: INITIAL_HN_DATE.fullTimestamp,
         regionCode: "BIEN_DONG",
         regionName: "Biển Đông & Quần đảo",
-        locationName: "Khu vực Giữa & Nam Biển Đông (Đặc khu Trường Sa) – Giám sát Bão/ATNĐ",
+        locationName: "Khu vực Giữa & Nam Biển Đông (Đặc khu Trường Sa) & Phía Đông Bắc Bắc Biển Đông",
         lat: 9.5000,
         lng: 114.0000,
         targetZoom: 6.4,
         radiusMeters: 165000,
         hazardCode: "MARINE_STORM",
-        hazardBadge: "SÓNG LỚN 2–3M, LỐC XOÁY & GIÁM SÁT BÃO/ATNĐ",
-        severityLevel: "Cảnh báo dông lốc biển & Theo dõi xoáy thuận nhiệt đới",
+        hazardBadge: "LỐC XOÁY BIỂN & GIÓ GIẬT CẤP 7–8",
+        severityLevel: "Cảnh báo nguy hiểm hàng hải & an toàn tàu thuyền",
         colorHex: "#a855f7",
         iconEmoji: "🌀",
-        currentTemp: "Tầm nhìn giảm 4–10km trong mưa dông",
-        forecastTemp: "Sóng > 2,0m (Bắc Biển Đông 2–3m)",
-        rainfallWind: "Gió giật cấp 7–8 • Dự báo ~1–2 Bão/ATNĐ",
-        currentSummary: "Hiện tại sáng 18/10 vùng Giữa và Nam Biển Đông (bao gồm đặc khu Trường Sa) có mưa rào và dông rải rác, trong mưa dông có lốc xoáy, gió giật cấp 7–8, sóng biển cao trên 2,0m; Bắc Biển Đông và Hoàng Sa sóng cao 2,0–3,0m.",
-        forecastDetail: "Tiếp tục theo dõi chặt chẽ khả năng hình thành 1–2 cơn bão/ATNĐ trên Biển Đông từ nay đến giữa tháng 11/2026 có nguy cơ ảnh hưởng đất liền Trung Bộ.",
-        sourceName: "NCHMF - Dự báo Sóng & Biển Đông 18/10",
-        sourceUrl: "https://nchmf.gov.vn/KttvSiteE/vi-VN/1/ban-tin-du-bao-song-10-ngay-toi-tu-ngay-09-10-den-ngay-18-10-2026-post54280.html"
+        currentTemp: "Tầm nhìn xa 4–10km trong mưa dông",
+        forecastTemp: "Sóng cao 2,0–3,5m",
+        rainfallWind: "Gió giật cấp 7–8 • Sóng cao 2.0–3.5m",
+        currentSummary: `Ghi nhận lúc 06:00 ngày ${INITIAL_HN_DATE.shortDate}: Khu vực Nam Biển Đông (Trường Sa) có mưa dông rải rác, Bắc Biển Đông sóng cao 2,0–3,0m.`,
+        forecastDetail: "Vùng biển có mưa rào và dông rải rác. Trong mưa dông nguy cơ cao xảy ra lốc xoáy và gió giật mạnh cấp 7–8, biển động mạnh; tàu thuyền cần lưu ý an toàn.",
+        hasDistinctSummary: false,
+        sourceName: `NCHMF - Biển Đông (${INITIAL_HN_DATE.shortDate})`,
+        sourceUrl: "https://nchmf.gov.vn/kttvsite/vi-VN/1/thoi-tiet-bien-24h-s12h3-15.html"
       }
     ];
-
     let WEATHER_POINTS = JSON.parse(JSON.stringify(DEFAULT_WEATHER_POINTS));
 
     // =========================================================================
@@ -2465,12 +2571,12 @@
 
           <div style="background:rgba(15,23,42,0.9);border:1px solid #1e293b;border-radius:7px;padding:6px 8px;margin-bottom:7px;font-size:11px;max-height:110px;overflow-y:auto;line-height:1.4;">
             <div style="margin-bottom:4px;">
-              <strong style="color:#7dd3fc;">Hiện trạng:</strong>
-              <span> ${pt.currentSummary}</span>
+              <strong style="color:#7dd3fc;">Hiện trạng (${getDynamicHanoiDateParts(pt.timestamp).shortDate}):</strong>
+              <span> ${sanitizeStaleDateText(pt.currentSummary, getDynamicHanoiDateParts(pt.timestamp).shortDate, getDynamicHanoiDateParts(pt.timestamp).fullDate)}</span>
             </div>
             <div>
-              <strong style="color:#fcd34d;">Dự báo &amp; Cảnh báo:</strong>
-              <span> ${pt.forecastDetail}</span>
+              <strong style="color:#fcd34d;">Dự báo &amp; Cảnh báo (${getDynamicHanoiDateParts(pt.timestamp).shortDate}):</strong>
+              <span> ${sanitizeStaleDateText(pt.forecastDetail, getDynamicHanoiDateParts(pt.timestamp).shortDate, getDynamicHanoiDateParts(pt.timestamp).fullDate)}</span>
             </div>
           </div>
 
@@ -2581,11 +2687,18 @@
       badgeEl.style.color = pt.colorHex;
       badgeEl.style.borderColor = `${pt.colorHex}66`;
 
+      const dParts = getDynamicHanoiDateParts(pt.timestamp);
+      const cleanForecastTemp = String(pt.forecastTemp || "").replace(/^Dự báo\s*:\s*/i, "").trim();
+      const cleanSummary = sanitizeStaleDateText(pt.currentSummary, dParts.shortDate, dParts.fullDate);
+      const cleanDetail = sanitizeStaleDateText(pt.forecastDetail, dParts.shortDate, dParts.fullDate);
+
       titleEl.textContent = pt.locationName;
       gpsEl.textContent = `GPS: ${pt.lat.toFixed(4)}, ${pt.lng.toFixed(4)} • ${pt.timestamp}`;
-      tempEl.textContent = `${pt.currentTemp} (${pt.forecastTemp})`;
+      tempEl.textContent = cleanForecastTemp ? `${pt.currentTemp} (Dự báo: ${cleanForecastTemp})` : pt.currentTemp;
       rainEl.textContent = pt.rainfallWind;
-      descEl.textContent = `${pt.currentSummary} ${pt.forecastDetail}`;
+      descEl.textContent = pt.hasDistinctSummary
+        ? `${cleanSummary} ${cleanDetail}`
+        : `Dự báo & Cảnh báo (${dParts.shortDate}): ${cleanDetail}`;
     }
 
     // TUYỆT ĐỐI KHÔNG DÙNG el.scrollIntoView() VÌ SẼ CUỘN KHUNG FLEX TRÊN MOBILE LÀM MẤT BẢN ĐỒ
@@ -2799,7 +2912,7 @@
             <div class="editable-cell" contenteditable="true" data-id="${pt.id}" data-field="rainfallWind" style="font-size:10.5px;color:#67e8f9;" title="Chạm để sửa Lượng mưa / Gió">${pt.rainfallWind}</div>
           </td>
           <td style="max-width:360px;color:#cbd5e1;line-height:1.4;">
-            <div class="editable-cell" contenteditable="true" data-id="${pt.id}" data-field="forecastCombined" title="Chạm để sửa Thông tin dự báo & hiện trạng">${pt.currentSummary} ${pt.forecastDetail}</div>
+            <div class="editable-cell" contenteditable="true" data-id="${pt.id}" data-field="forecastCombined" title="Chạm để sửa Thông tin dự báo & hiện trạng">${pt.hasDistinctSummary ? (pt.currentSummary + " " + pt.forecastDetail) : pt.forecastDetail}</div>
             <a href="${pt.sourceUrl}" target="_blank" rel="noopener noreferrer" style="color:#38bdf8;font-size:10px;">[Nguồn NCHMF ↗]</a>
           </td>
           <td style="white-space:nowrap;">
@@ -3079,7 +3192,7 @@
         `${pt.currentTemp} | Dự báo: ${pt.forecastTemp}`,
         pt.rainfallWind,
         pt.severityLevel,
-        `${pt.currentSummary} ${pt.forecastDetail}`,
+        pt.hasDistinctSummary ? `${pt.currentSummary} ${pt.forecastDetail}` : pt.forecastDetail,
         pt.sourceUrl
       ]);
 
@@ -3092,7 +3205,7 @@
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = "du_lieu_thoi_tiet_cuc_doan_viet_nam_17_18_10_2026.csv";
+      link.download = `du_lieu_thoi_tiet_cuc_doan_viet_nam_${getDynamicHanoiDateParts().fullDate.replace(/\//g, "_")}.csv`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -3123,7 +3236,7 @@
             `${pt.lat}, ${pt.lng}`,
             pt.hazardBadge,
             `${pt.currentTemp} (${pt.forecastTemp}) - ${pt.rainfallWind}`,
-            `${pt.currentSummary} ${pt.forecastDetail}`,
+            pt.hasDistinctSummary ? `${pt.currentSummary} ${pt.forecastDetail}` : pt.forecastDetail,
             pt.sourceUrl
           ].join("\t")
         )
@@ -3152,7 +3265,7 @@
     // 3) Tự động làm tươi định kỳ (15s/30s/60s) + Làm tươi tức thì khi chuyển tab (window.focus)
     // 4) Sửa trực tiếp trên bảng / Dán nhanh TSV-CSV từ Google Sheet ➔ Cập nhật Bản đồ 0ms
     // =========================================================================
-    const STORAGE_KEY_POINTS = "VN_EXTREME_WEATHER_POINTS_V3";
+    const STORAGE_KEY_POINTS = "VN_EXTREME_WEATHER_POINTS_V5";
     const STORAGE_KEY_SHEET_URL = "VN_EXTREME_WEATHER_SHEET_URL_V2";
     let pollIntervalSec = 10;
     let pollTimerId = null;
@@ -3295,45 +3408,55 @@
         }
         if (!coords) return;
 
-        let timestamp = "17/10/2026 21:45 (GMT+7)";
+        let timestamp = getDynamicHanoiDateParts().fullTimestamp;
         let regionName = "";
         let locationName = "";
         let hazardBadge = "";
-        let currentTemp = "27°C";
+        let currentTemp = "26°C";
         let forecastTemp = "23°C – 32°C";
         let rainfallWind = "Mưa dông rải rác • Gió cấp 2–3";
         let severityLevel = "Cảnh báo Thời tiết Cực đoan";
         let currentSummary = "";
         let forecastDetail = "";
+        let hasDistinctSummary = false;
         let sourceUrl = "https://www.nchmf.gov.vn/";
 
         // Trường hợp 1: Bảng đầy đủ 9–13 cột chuẩn Google Sheet
         if (cleanCols.length >= 9 && gpsColIdx >= 3) {
           timestamp = cleanCols[1] || timestamp;
+          const rowDateInfo = getDynamicHanoiDateParts(timestamp);
           regionName = cleanCols[2] || "Việt Nam";
           locationName = cleanCols[3] || `Điểm cảnh báo #${id}`;
-          hazardBadge = cleanCols[7] || (defaultPt ? defaultPt.hazardBadge : "CẢNH BÁO THỜI TIẾT CỰC ĐOAN");
+          hazardBadge = sanitizeStaleDateText(
+            cleanCols[7] || (defaultPt ? defaultPt.hazardBadge : "CẢNH BÁO THỜI TIẾT CỰC ĐOAN"),
+            rowDateInfo.shortDate,
+            rowDateInfo.fullDate
+          );
 
           const tempCol = cleanCols[8] || "";
           if (tempCol.includes("|")) {
             const parts = tempCol.split("|");
-            currentTemp = parts[0].replace(/^Hiện tại\s*:\s*/i, "").trim() || currentTemp;
-            forecastTemp = parts[1].replace(/^Dự báo\s*:\s*/i, "").trim() || forecastTemp;
+            currentTemp = parts[0].trim().replace(/^Hiện tại\s*:\s*/i, "").trim() || currentTemp;
+            forecastTemp = parts[1].trim().replace(/^Dự báo\s*:\s*/i, "").trim() || forecastTemp;
           } else if (tempCol) {
-            currentTemp = tempCol.replace(/^Hiện tại\s*:\s*/i, "").trim();
+            currentTemp = tempCol.trim().replace(/^Hiện tại\s*:\s*/i, "").trim();
           }
 
-          rainfallWind = cleanCols[9] || rainfallWind;
-          severityLevel = cleanCols[10] || severityLevel;
+          rainfallWind = sanitizeStaleDateText(cleanCols[9] || rainfallWind, rowDateInfo.shortDate, rowDateInfo.fullDate);
+          severityLevel = sanitizeStaleDateText(cleanCols[10] || severityLevel, rowDateInfo.shortDate, rowDateInfo.fullDate);
 
-          const fullWeatherText = cleanCols[11] || "";
-          const splitIdx = fullWeatherText.search(/(?:Dự báo|Cảnh báo|Nhận định|Chiều và tối|Khoảng ngày)/i);
+          const rawWeatherText = sanitizeStaleDateText(cleanCols[11] || "", rowDateInfo.shortDate, rowDateInfo.fullDate);
+          const splitIdx = rawWeatherText.search(/(?:Dự báo|Cảnh báo|Nhận định|Chiều và tối|Khoảng ngày)/i);
           if (splitIdx > 15) {
-            currentSummary = fullWeatherText.slice(0, splitIdx).trim();
-            forecastDetail = fullWeatherText.slice(splitIdx).trim();
+            currentSummary = rawWeatherText.slice(0, splitIdx).trim();
+            forecastDetail = rawWeatherText.slice(splitIdx).trim();
+            hasDistinctSummary = true;
           } else {
-            currentSummary = defaultPt ? defaultPt.currentSummary : "Cập nhật trực tiếp từ Google Sheet:";
-            forecastDetail = fullWeatherText;
+            // Tuyệt đối KHÔNG lấy lại currentSummary cố định của ngày cũ từ DEFAULT_WEATHER_POINTS!
+            // Tự động tổng hợp Hiện trạng theo đúng ngày giờ & số liệu thực tế của dòng Google Sheet
+            currentSummary = `Ghi nhận lúc ${rowDateInfo.time} ngày ${rowDateInfo.shortDate}: ${currentTemp} (dự báo ${forecastTemp}), ${rainfallWind}.`;
+            forecastDetail = rawWeatherText || (defaultPt ? sanitizeStaleDateText(defaultPt.forecastDetail, rowDateInfo.shortDate, rowDateInfo.fullDate) : "");
+            hasDistinctSummary = false;
           }
 
           const urlCandidate = cleanCols[12] || cleanCols[cleanCols.length - 1];
@@ -3354,13 +3477,17 @@
             locationName = cleanCols[0] || `Điểm cảnh báo #${id}`;
             forecastDetail = cleanCols.slice(gpsColIdx + 1).join(" • ");
           }
-          currentSummary = "Đồng bộ trực tiếp từ Google Sheet:";
+          const rowDateInfo = getDynamicHanoiDateParts(timestamp);
+          forecastDetail = sanitizeStaleDateText(forecastDetail, rowDateInfo.shortDate, rowDateInfo.fullDate);
           const tempMatch = forecastDetail.match(/(\d{2}\s*°C)/i);
           if (tempMatch) currentTemp = tempMatch[1];
           const rainMatch = forecastDetail.match(/(mưa[^.,;]{3,35})/i);
           if (rainMatch) rainfallWind = rainMatch[1];
+          currentSummary = `Ghi nhận lúc ${rowDateInfo.time} ngày ${rowDateInfo.shortDate}: ${currentTemp}, ${rainfallWind}.`;
+          hasDistinctSummary = false;
         }
 
+        const finalDateInfo = getDynamicHanoiDateParts(timestamp);
         const styleInfo = classifyHazardStyle(`${hazardBadge} ${severityLevel} ${forecastDetail}`);
         if (!hazardBadge) {
           hazardBadge =
@@ -3390,10 +3517,9 @@
           (dp) => dp.id === id || (Math.abs(dp.lat - coords.lat) < 0.02 && Math.abs(dp.lng - coords.lng) < 0.02)
         );
 
-        const shortCity = locationName.split(",")[0].split("(")[0].trim().slice(0, 18);
         parsedPoints.push({
           id,
-          shortLabel: existingMatch && existingMatch.locationName === locationName ? existingMatch.shortLabel : `${id}. ${shortCity}`,
+          shortLabel: buildDynamicShortLabel(id, locationName, currentTemp),
           timestamp,
           regionCode,
           regionName,
@@ -3410,9 +3536,10 @@
           currentTemp,
           forecastTemp,
           rainfallWind,
-          currentSummary: currentSummary || (existingMatch ? existingMatch.currentSummary : "Quan trắc mới nhất:"),
-          forecastDetail: forecastDetail || (existingMatch ? existingMatch.forecastDetail : ""),
-          sourceName: existingMatch ? existingMatch.sourceName : "Google Sheet Live / NCHMF",
+          currentSummary: sanitizeStaleDateText(currentSummary, finalDateInfo.shortDate, finalDateInfo.fullDate),
+          forecastDetail: sanitizeStaleDateText(forecastDetail, finalDateInfo.shortDate, finalDateInfo.fullDate),
+          hasDistinctSummary,
+          sourceName: `NCHMF - Cập nhật ${finalDateInfo.shortDate}`,
           sourceUrl: sourceUrl || (existingMatch ? existingMatch.sourceUrl : "https://www.nchmf.gov.vn/")
         });
       });
@@ -3815,11 +3942,13 @@
     let tvBroadcastState = {
       isActive: false,
       isPaused: false,
+      isSpeakingSingle: false,
       currentStep: 0,
       segments: [],
       speechRate: 1.0,
       currentUtterance: null,
-      cachedVoices: []
+      cachedVoices: [],
+      vietnameseVoice: null
     };
 
     function playTvNewsChime() {
@@ -3853,179 +3982,175 @@
       } catch (e) {}
     }
 
-    // ---------- ENGINE GIỌNG ĐỌC TIẾNG VIỆT (bản vá) ----------
-    // Nguyên tắc: CHỈ đọc bằng giọng có ngôn ngữ vi. Không bao giờ rơi về giọng đầu tiên trong danh sách
-    // (trước đây voices[0] thường là giọng Anh/Mỹ nên đọc tiếng Việt bị sai âm).
-    let speechToken = 0;
-    let noViWarned = false;
-
-    function refreshSpeechVoices() {
+    // Lọc tất cả các giọng tiếng Việt có trên thiết bị/trình duyệt
+    function getAllAvailableVietnameseVoices() {
       if (!window.speechSynthesis) return [];
-      tvBroadcastState.cachedVoices = window.speechSynthesis.getVoices() || [];
-      return tvBroadcastState.cachedVoices;
-    }
-
-    function isVietnameseVoice(v) {
-      const l = String(v.lang || "").replace("_", "-").toLowerCase();
-      return l === "vi" || l.startsWith("vi-");
-    }
-
-    function initSpeechVoices() {
-      if (!window.speechSynthesis) return;
-      refreshSpeechVoices();
-      window.speechSynthesis.onvoiceschanged = refreshSpeechVoices;
-    }
-    initSpeechVoices();
-
-    // Chờ trình duyệt nạp xong danh sách giọng (Chrome/Edge nạp bất đồng bộ, nhất là giọng online)
-    function waitForSpeechVoices(maxMs) {
-      return new Promise((resolve) => {
-        if (!window.speechSynthesis) return resolve(false);
-        if (refreshSpeechVoices().some(isVietnameseVoice)) return resolve(true);
-        if (tvBroadcastState.voiceWaitDone) return resolve(false);
-        const t0 = Date.now();
-        const timer = setInterval(() => {
-          const has = refreshSpeechVoices().some(isVietnameseVoice);
-          if (has || Date.now() - t0 >= (maxMs || 3000)) {
-            clearInterval(timer);
-            if (!has) tvBroadcastState.voiceWaitDone = true;
-            resolve(has);
-          }
-        }, 150);
+      const voices = window.speechSynthesis.getVoices() || [];
+      return voices.filter((v) => {
+        const lang = (v.lang || "").toLowerCase().replace("_", "-");
+        const name = (v.name || "").toLowerCase();
+        return (
+          lang === "vi-vn" ||
+          lang === "vi" ||
+          lang.startsWith("vi-") ||
+          name.includes("vietnam") ||
+          name.includes("vietnamese") ||
+          name.includes("tiếng việt") ||
+          name.includes("hoài my") ||
+          name.includes("hoaimy") ||
+          name.includes("nam minh") ||
+          name.includes("namminh") ||
+          name.includes("linh") ||
+          name.includes("mai") ||
+          name.includes("an")
+        );
       });
     }
 
-    // Chọn giọng tiếng Việt tốt nhất; trả về null nếu thiết bị không có giọng Việt
     function getBestVietnameseVoice() {
-      const vi = refreshSpeechVoices().filter(isVietnameseVoice);
-      if (!vi.length) return null;
-      const score = (v) => {
-        const n = String(v.name || "");
-        let sc = 0;
-        if (/natural|online/i.test(n)) sc += 40;
-        if (/hoaimy|hoài my|namminh|nam minh/i.test(n)) sc += 25;
-        if (/google/i.test(n)) sc += 20;
-        if (/microsoft/i.test(n)) sc += 10;
-        if (String(v.lang).replace("_", "-").toLowerCase() === "vi-vn") sc += 5;
-        return sc;
-      };
-      return vi.sort((a, b) => score(b) - score(a))[0];
-    }
-
-    // Cắt văn bản thành câu ngắn: Chrome hay tự ngắt giọng khi một lượt đọc quá ~15 giây
-    function splitSpeechText(text, max) {
-      max = max || 170;
-      const clean = String(text).replace(/\s+/g, " ").trim();
-      const sentences = clean.match(/[^.!?;:]+[.!?;:]*\s*/g) || [clean];
-      const out = [];
-      let cur = "";
-      const push = () => { if (cur.trim()) out.push(cur.trim()); cur = ""; };
-      sentences.forEach((sent) => {
-        if ((cur + sent).length <= max) { cur += sent; return; }
-        push();
-        if (sent.length <= max) { cur = sent; return; }
-        (sent.match(/[^,]+,?\s*/g) || [sent]).forEach((part) => {
-          if ((cur + part).length <= max) cur += part;
-          else { push(); cur = part; }
-        });
+      if (tvBroadcastState.vietnameseVoice) {
+        return tvBroadcastState.vietnameseVoice;
+      }
+      const viVoices = getAllAvailableVietnameseVoices();
+      if (viVoices.length === 0) return null;
+      // Ưu tiên giọng tự nhiên: Microsoft Hoài My (chuẩn VTV) hoặc Google Tiếng Việt
+      const preferred = viVoices.find((v) => {
+        const n = v.name.toLowerCase();
+        return n.includes("hoaimy") || n.includes("natural") || n.includes("google") || n.includes("linh");
       });
-      push();
-      return out;
+      return preferred || viVoices[0];
     }
 
-    function invalidateSpeech() {
-      speechToken++;
-      if (window.speechSynthesis) window.speechSynthesis.cancel();
-      const au = tvBroadcastState.onlineAudio;
-      if (au) {
-        try { au.onended = null; au.onerror = null; au.pause(); au.removeAttribute("src"); au.load(); } catch (e) {}
-        tvBroadcastState.onlineAudio = null;
+    function populateVoiceDropdown() {
+      const selectEl = document.getElementById("select-tv-voice");
+      if (!selectEl || !window.speechSynthesis) return;
+
+      const viVoices = getAllAvailableVietnameseVoices();
+      selectEl.innerHTML = "";
+
+      if (viVoices.length > 0) {
+        viVoices.forEach((v) => {
+          const opt = document.createElement("option");
+          opt.value = v.name;
+          const cleanName = v.name
+            .replace(/Microsoft /g, "")
+            .replace(/ Online \(Natural\) - Vietnamese \(Vietnam\)/g, " (Chuẩn VTV ⭐)")
+            .replace(/ \(Vietnam\)/g, "")
+            .replace(/ - Vietnamese/g, "");
+          opt.textContent = `🇻🇳 ${cleanName}`;
+          selectEl.appendChild(opt);
+        });
+
+        const best = getBestVietnameseVoice();
+        if (best) {
+          selectEl.value = best.name;
+          tvBroadcastState.vietnameseVoice = best;
+        }
+
+        const helpBanner = document.getElementById("tv-voice-help-banner");
+        if (helpBanner) helpBanner.classList.add("hidden");
+      } else {
+        const opt = document.createElement("option");
+        opt.value = "none";
+        opt.textContent = "⚠️ PC chưa có giọng tiếng Việt";
+        selectEl.appendChild(opt);
       }
     }
 
-    // Dự phòng khi thiết bị không có giọng Việt: đọc bằng dịch vụ TTS online của Google Dịch (không chính thức,
-    // có thể bị đổi/chặn bất cứ lúc nào). Nếu thất bại thì quay về chế độ chỉ phụ đề.
-    function speakViaOnlineTts(text, token, handlers) {
-      const chunks = splitSpeechText(text, 180);
-      const rate = tvBroadcastState.speechRate || 1;
-      const audio = new Audio();
-      tvBroadcastState.onlineAudio = audio;
-      let i = 0;
-      const silentFallback = (err) => {
-        if (token !== speechToken) return;
-        const code = audio.error ? ("mã lỗi media " + audio.error.code) : (err && err.name ? err.name : "không rõ");
-        setVoiceStatus("⚠️ Không có giọng tiếng Việt và giọng online không phát được (" + code + "). Chỉ hiện phụ đề.", true);
-        const ms = Math.max(5000, (String(text).length * 75) / rate);
-        setTimeout(() => { if (token === speechToken && handlers.onend) handlers.onend(); }, ms);
-      };
-      const next = () => {
-        if (token !== speechToken) return;
-        if (i >= chunks.length) { if (handlers.onend) handlers.onend(); return; }
-        audio.src = "https://translate.googleapis.com/translate_tts?ie=UTF-8&client=tw-ob&tl=vi&q=" + encodeURIComponent(chunks[i++]);
-        audio.playbackRate = rate;
-        const pr = audio.play();
-        if (pr && pr.catch) pr.catch(silentFallback);
-      };
-      audio.onended = next;
-      audio.onerror = silentFallback;
-      next();
-    }
-
-    function setVoiceStatus(msg, warn) {
-      const subEl = document.getElementById("tv-subtitles-text");
-      if (!subEl || !subEl.parentNode) return;
-      let el = document.getElementById("tv-voice-status");
-      if (!el) {
-        el = document.createElement("div");
-        el.id = "tv-voice-status";
-        el.style.cssText = "margin-top:6px;font-size:11px;font-weight:600;";
-        subEl.parentNode.insertBefore(el, subEl.nextSibling);
-      }
-      el.style.color = warn ? "#fde047" : "#6ee7b7";
-      el.textContent = msg;
-    }
-
-    // Hàm đọc duy nhất cho toàn bộ ứng dụng
-    async function speakVietnamese(text, handlers) {
-      handlers = handlers || {};
-      const token = ++speechToken;
-      const ready = window.speechSynthesis ? await waitForSpeechVoices(3000) : false;
-      if (token !== speechToken) return; // đã bị dừng/chuyển đoạn trong lúc chờ
-
-      const voice = ready ? getBestVietnameseVoice() : null;
+    // Chờ danh sách giọng nói được nạp hoàn chỉnh từ xa (bất đồng bộ trên Chrome & Edge)
+    function ensureVietnameseVoice(callback, maxWaitMs = 2500) {
       if (!window.speechSynthesis) {
-        setVoiceStatus("⚠️ Trình duyệt/khung này không hỗ trợ giọng đọc (speechSynthesis).", true);
-      } else if (voice) {
-        setVoiceStatus("🔊 Giọng đang dùng: " + voice.name + " [" + voice.lang + "]", false);
+        callback(null);
+        return;
       }
-      if (!voice) {
-        // Không có giọng Việt trên thiết bị: KHÔNG đọc bằng giọng nước ngoài. Thử giọng online dự phòng.
-        setVoiceStatus("ℹ️ Thiết bị không có giọng tiếng Việt (" + refreshSpeechVoices().length + " giọng khác). Đang dùng giọng online dự phòng.", true);
-        speakViaOnlineTts(text, token, handlers);
+      const immediate = getBestVietnameseVoice();
+      if (immediate) {
+        tvBroadcastState.vietnameseVoice = immediate;
+        populateVoiceDropdown();
+        callback(immediate);
         return;
       }
 
-      window.speechSynthesis.cancel();
-      const chunks = splitSpeechText(text);
-      chunks.forEach((chunk, i) => {
-        const u = new SpeechSynthesisUtterance(chunk);
-        u.voice = voice;
-        u.lang = voice.lang;
-        u.rate = tvBroadcastState.speechRate;
-        u.pitch = 1.0;
-        u.onerror = (e) => {
-          if (token !== speechToken) return;
-          if (e && (e.error === "interrupted" || e.error === "canceled")) return;
-          speechToken++;
-          window.speechSynthesis.cancel();
-          if (handlers.onerror) handlers.onerror(e);
-        };
-        if (i === chunks.length - 1) {
-          u.onend = () => { if (token === speechToken && handlers.onend) handlers.onend(); };
+      let done = false;
+      const startTime = Date.now();
+      const finish = (v) => {
+        if (done) return;
+        done = true;
+        clearInterval(pollInterval);
+        try { window.speechSynthesis.removeEventListener("voiceschanged", onVoicesChanged); } catch (e) {}
+        tvBroadcastState.vietnameseVoice = v;
+        populateVoiceDropdown();
+        callback(v);
+      };
+
+      const onVoicesChanged = () => {
+        const v = getBestVietnameseVoice();
+        if (v) finish(v);
+      };
+
+      try {
+        window.speechSynthesis.addEventListener("voiceschanged", onVoicesChanged);
+      } catch (e) {}
+
+      const pollInterval = setInterval(() => {
+        const v = getBestVietnameseVoice();
+        if (v) {
+          finish(v);
+        } else if (Date.now() - startTime >= maxWaitMs) {
+          finish(null);
         }
-        tvBroadcastState.currentUtterance = u;
-        window.speechSynthesis.speak(u);
-      });
+      }, 150);
+    }
+
+    function initSpeechVoices() {
+      ensureVietnameseVoice((v) => {
+        populateVoiceDropdown();
+      }, 2000);
+    }
+    initSpeechVoices();
+
+    // Dừng tất cả âm thanh đang phát
+    function stopAnyActiveSpeech() {
+      if (window.speechSynthesis) {
+        try { window.speechSynthesis.cancel(); } catch (e) {}
+      }
+      tvBroadcastState.currentUtterance = null;
+    }
+
+    // Thử giọng phát thanh viên ngay lập tức
+    function testVietnameseVoice() {
+      stopAnyActiveSpeech();
+      playTvNewsChime();
+
+      ensureVietnameseVoice((viVoice) => {
+        if (!viVoice) {
+          const helpBanner = document.getElementById("tv-voice-help-banner");
+          if (helpBanner) helpBanner.classList.remove("hidden");
+          showLiveSyncToast("⚠️ Trình duyệt trên máy tính hiện chưa có giọng đọc tiếng Việt. Xem hướng dẫn mở bằng Microsoft Edge trên bảng điều khiển!", true);
+          return;
+        }
+
+        const testMsg = "Kính chào quý vị! Đây là bản tin dự báo thời tiết cực đoan Việt Nam trên kênh VTV Thời sự.";
+        showLiveSyncToast(`🎙️ Đang thử giọng: ${viVoice.name} (100% tiếng Việt chuẩn)`);
+
+        const tickerEl = document.getElementById("tv-news-ticker");
+        const subEl = document.getElementById("tv-subtitles-text");
+        if (tickerEl) tickerEl.classList.remove("hidden");
+        if (subEl) subEl.textContent = `[THỬ GIỌNG]: ${testMsg} (Phát thanh viên: ${viVoice.name})`;
+
+        window.speechSynthesis.cancel();
+        const utter = new SpeechSynthesisUtterance(testMsg);
+        utter.voice = viVoice;
+        utter.lang = viVoice.lang || "vi-VN";
+        utter.rate = tvBroadcastState.speechRate;
+        utter.pitch = 1.05;
+
+        utter.onend = () => {
+          showLiveSyncToast(`✅ Thử giọng hoàn tất: ${viVoice.name}`);
+        };
+
+        window.speechSynthesis.speak(utter);
+      }, 1500);
     }
 
     // Tự động tổng hợp kịch bản bản tin truyền hình thời tiết từ dữ liệu WEATHER_POINTS thực tế
@@ -4043,51 +4168,52 @@
       const bienNam = getPt(13) || DEFAULT_WEATHER_POINTS[12];
       const truongSa = getPt(14) || DEFAULT_WEATHER_POINTS[13];
 
+      const liveDateStr = getDynamicHanoiDateParts(hanoi.timestamp).fullDate;
       return [
         {
-          title: "Mở đầu Bản tin",
+          title: `Mở đầu Bản tin (${liveDateStr})`,
           action: () => {
             const zOverview = window.innerWidth < 640 ? 5.3 : 5.6;
             map.closePopup();
             updateAltitudeHud(zOverview, "Toàn cảnh Việt Nam", "#34d399");
             map.flyTo([15.2, 108.2], zOverview, { animate: true, duration: 1.5 });
           },
-          text: "Kính chào quý vị khán giả! Sau đây là bản tin dự báo thời tiết cực đoan trên toàn quốc cập nhật mới nhất từ Trung tâm Dự báo Khí tượng Thủy văn Quốc gia."
+          text: `Kính chào quý vị khán giả! Sau đây là bản tin dự báo thời tiết cực đoan trên toàn quốc ngày ${liveDateStr}, cập nhật trực tiếp từ Trung tâm Dự báo Khí tượng Thủy văn Quốc gia.`
         },
         {
-          title: "Bắc Bộ (Nắng hanh 34°C)",
+          title: `Bắc Bộ (${hanoi.currentTemp})`,
           action: () => {
             flyCameraHighToLow(hanoi.id, true);
           },
-          text: `Tại khu vực Bắc Bộ, trọng tâm là Hà Nội và Phú Thọ, hôm nay tiếp tục duy trì trạng thái ngày nắng hanh, độ ẩm giảm thấp. Nhiệt độ cao nhất trưa chiều chạm mốc ${hanoi.forecastTemp.replace("–", "đến")}, cao nhất miền Bắc. Vùng núi Tây Bắc đêm và sáng sớm trời rét, có sương mù nhẹ trước khi đón đợt không khí lạnh và mưa dông chuyển mùa.`
+          text: `Tại khu vực Bắc Bộ, trọng tâm là Hà Nội và Phú Thọ: ${hanoi.hazardBadge}. Nhiệt độ hiện tại ${hanoi.currentTemp}, dự báo ${hanoi.forecastTemp.replace("–", "đến")}. ${hanoi.forecastDetail}`
         },
         {
-          title: "Miền Trung (Mưa rất to >80mm)",
+          title: `Miền Trung (${tuyHoa.shortLabel})`,
           action: () => {
             flyCameraHighToLow(tuyHoa.id, true);
           },
-          text: `Chuyển sang khu vực Miền Trung. Cảnh báo đặc biệt từ Đà Nẵng, qua Tuy Hòa đến Nha Trang, xuất hiện mưa rào và dông rải rác, cục bộ có nơi mưa rất to trên 80 mi-li-mét trong thời gian ngắn, nguy cơ rất cao xảy ra lốc sét, mưa đá và sạt lở đất sườn dốc.`
+          text: `Chuyển sang khu vực Miền Trung từ Đà Nẵng, Tuy Hòa đến Nha Trang: ${tuyHoa.hazardBadge}. Nhiệt độ hiện tại ${tuyHoa.currentTemp}, dự báo ${tuyHoa.forecastTemp.replace("–", "đến")}. ${tuyHoa.forecastDetail}`
         },
         {
-          title: "Tây Nguyên (Khẩn cấp Lũ quét)",
+          title: `Tây Nguyên (${lamDong.shortLabel})`,
           action: () => {
             flyCameraHighToLow(lamDong.id, true);
           },
-          text: `Tại Tây Nguyên, tình trạng lũ quét và sạt lở sườn dốc đang được đặt ở mức cảnh báo khẩn cấp tại 24 xã vùng đèo dốc tỉnh Lâm Đồng như Bảo Lộc, Bảo Lâm, Đạ Huoai và Cát Tiên sau những trận mưa dồn dập trên 72 mi-li-mét.`
+          text: `Tại khu vực Tây Nguyên, trọng điểm là Lâm Đồng, Gia Lai và Đắk Lắk: ${lamDong.hazardBadge}. ${lamDong.forecastDetail}`
         },
         {
-          title: "Nam Bộ & TP. Hồ Chí Minh",
+          title: `Nam Bộ & TP. Hồ Chí Minh (${hcm.currentTemp})`,
           action: () => {
             flyCameraHighToLow(hcm.id, true);
           },
-          text: `Xuống đến khu vực Nam Bộ, mực nước sông Đồng Nai tại Tà Lài đang dao động trên mức Báo động 1. Tại Thành phố Hồ Chí Minh và Đồng bằng sông Cửu Long, mưa lớn tập trung vào chiều tối, cục bộ vượt 80 đến 172 mi-li-mét, gây ngập sâu các tuyến đường đô thị trũng thấp.`
+          text: `Xuống đến khu vực Nam Bộ, tại Thành phố Hồ Chí Minh, Đồng Nai và Đồng bằng sông Cửu Long: nhiệt độ hiện tại ${hcm.currentTemp}, dự báo ${hcm.forecastTemp.replace("–", "đến")}. ${hcm.forecastDetail}`
         },
         {
           title: "Biển Đông & Quần đảo",
           action: () => {
             flyCameraHighToLow(truongSa.id, true);
           },
-          text: `Trên Biển Đông, vùng biển từ Đà Nẵng đến Cà Mau và khu vực Trường Sa có mưa dông, lốc xoáy và gió giật mạnh cấp 7 đến cấp 8, sóng biển cao trên 2 mét. Cơ quan khí tượng tiếp tục theo dõi sát diễn biến xoáy thuận nhiệt đới.`
+          text: `Trên Biển Đông và vùng biển phía Nam, bao gồm quần đảo Hoàng Sa và Trường Sa: ${truongSa.hazardBadge}. ${truongSa.forecastDetail}`
         },
         {
           title: "Kết thúc Bản tin",
@@ -4105,12 +4231,13 @@
     function startTvBroadcast() {
       stopAutoTour();
       clearCameraTimers();
-      invalidateSpeech();
+      stopAnyActiveSpeech();
 
       playTvNewsChime();
 
       tvBroadcastState.isActive = true;
       tvBroadcastState.isPaused = false;
+      tvBroadcastState.isSpeakingSingle = false;
       tvBroadcastState.currentStep = 0;
       tvBroadcastState.segments = generateTvNewsSegments();
 
@@ -4126,17 +4253,19 @@
       if (eqEl) eqEl.classList.add("active");
       if (pauseBtn) pauseBtn.textContent = "⏸ Tạm dừng";
 
-      // Đợi tiếng Chime mở đầu vang lên 0.4s rồi bắt đầu đọc phân đoạn 1
-      setTimeout(() => {
-        playTvSegment(0);
-      }, 450);
+      ensureVietnameseVoice((viVoice) => {
+        populateVoiceDropdown();
+        setTimeout(() => {
+          playTvSegment(0);
+        }, 350);
+      }, 1500);
     }
 
     function stopTvBroadcast() {
       tvBroadcastState.isActive = false;
       tvBroadcastState.isPaused = false;
-      invalidateSpeech();
-      tvBroadcastState.currentUtterance = null;
+      tvBroadcastState.isSpeakingSingle = false;
+      stopAnyActiveSpeech();
 
       const tickerEl = document.getElementById("tv-news-ticker");
       const btnTv = document.getElementById("btn-tv-broadcast");
@@ -4160,39 +4289,67 @@
       tvBroadcastState.currentStep = stepIdx;
       const seg = tvBroadcastState.segments[stepIdx];
 
-      // Kích hoạt camera bay đồng bộ
       if (typeof seg.action === "function") {
         seg.action();
       }
 
-      // Cập nhật phụ đề Teleprompter
       const subEl = document.getElementById("tv-subtitles-text");
       const counterEl = document.getElementById("tv-step-counter");
       if (subEl) subEl.textContent = seg.text;
       if (counterEl) counterEl.textContent = `${stepIdx + 1}/${tvBroadcastState.segments.length}`;
 
-      if (!("speechSynthesis" in window)) {
-        // Fallback tự động nhảy sau 7 giây nếu trình duyệt không hỗ trợ Web Speech
-        setTimeout(() => {
-          if (tvBroadcastState.isActive && !tvBroadcastState.isPaused) {
+      const onSegmentEnd = () => {
+        if (tvBroadcastState.isActive && !tvBroadcastState.isPaused) {
+          setTimeout(() => {
             playTvSegment(stepIdx + 1);
-          }
-        }, 7000);
-        return;
-      }
-
-      speakVietnamese(seg.text, {
-        onend: () => {
-          if (tvBroadcastState.isActive && !tvBroadcastState.isPaused) {
-            setTimeout(() => { playTvSegment(stepIdx + 1); }, 800);
-          }
-        },
-        onerror: () => {
-          if (tvBroadcastState.isActive && !tvBroadcastState.isPaused) {
-            setTimeout(() => { playTvSegment(stepIdx + 1); }, 4500);
-          }
+          }, 800);
         }
-      });
+      };
+
+      ensureVietnameseVoice((viVoice) => {
+        if (!viVoice) {
+          // TUYỆT ĐỐI KHÔNG DÙNG GIỌNG TIẾNG ANH (Microsoft David)!
+          // Chạy phụ đề im lặng và hiển thị thông báo khuyên mở bằng Microsoft Edge
+          const helpBanner = document.getElementById("tv-voice-help-banner");
+          if (helpBanner) helpBanner.classList.remove("hidden");
+
+          const readTimeSec = Math.max(5, Math.round(seg.text.length / 18));
+          setTimeout(onSegmentEnd, readTimeSec * 1000);
+          return;
+        }
+
+        window.speechSynthesis.cancel();
+        const utter = new SpeechSynthesisUtterance(seg.text);
+        utter.voice = viVoice;
+        utter.lang = viVoice.lang || "vi-VN";
+        utter.rate = tvBroadcastState.speechRate;
+        utter.pitch = 1.05;
+
+        let ended = false;
+        const triggerEnd = () => {
+          if (ended) return;
+          ended = true;
+          onSegmentEnd();
+        };
+
+        utter.onend = triggerEnd;
+        utter.onerror = (e) => {
+          console.warn("SpeechSynthesis error:", e);
+          triggerEnd();
+        };
+
+        // Chống pause ngầm sau 15 giây trên Chromium
+        const resumeInterval = setInterval(() => {
+          if (!window.speechSynthesis.speaking) {
+            clearInterval(resumeInterval);
+          } else if (window.speechSynthesis.paused) {
+            window.speechSynthesis.resume();
+          }
+        }, 3000);
+
+        tvBroadcastState.currentUtterance = utter;
+        window.speechSynthesis.speak(utter);
+      }, 1200);
     }
 
     // Đọc riêng bản tin chi tiết của một điểm cảnh báo cụ thể
@@ -4204,7 +4361,9 @@
       if (tvBroadcastState.isActive) {
         stopTvBroadcast();
       }
+      stopAnyActiveSpeech();
 
+      tvBroadcastState.isSpeakingSingle = true;
       playTvNewsChime();
       flyCameraHighToLow(pt.id, true);
 
@@ -4213,34 +4372,49 @@
       const counterEl = document.getElementById("tv-step-counter");
       const eqEl = document.getElementById("tv-equalizer");
 
-      const text = `Bản tin thời tiết tại ${pt.locationName}, thuộc ${pt.regionName}: ${pt.hazardBadge}. ${pt.currentSummary} ${pt.forecastDetail} Nhiệt độ hiện tại: ${pt.currentTemp}, dự báo ${pt.forecastTemp}. Cảnh báo: ${pt.rainfallWind}.`;
+      const dInfo = getDynamicHanoiDateParts(pt.timestamp);
+      const cleanSummary = sanitizeStaleDateText(pt.currentSummary, dInfo.shortDate, dInfo.fullDate);
+      const cleanDetail = sanitizeStaleDateText(pt.forecastDetail, dInfo.shortDate, dInfo.fullDate);
+      const text = pt.hasDistinctSummary
+        ? `Bản tin thời tiết ngày ${dInfo.shortDate} tại ${pt.locationName}, thuộc ${pt.regionName}: ${pt.hazardBadge}. ${cleanSummary} ${cleanDetail} Nhiệt độ hiện tại: ${pt.currentTemp}, dự báo ${pt.forecastTemp}. Cảnh báo: ${pt.rainfallWind}.`
+        : `Bản tin thời tiết ngày ${dInfo.shortDate} tại ${pt.locationName}, thuộc ${pt.regionName}: ${pt.hazardBadge}. Nhiệt độ hiện tại ${pt.currentTemp}, dự báo ${pt.forecastTemp}, ${pt.rainfallWind}. ${cleanDetail}`;
 
       if (tickerEl) tickerEl.classList.remove("hidden");
       if (subEl) subEl.textContent = text;
       if (counterEl) counterEl.textContent = `Điểm #${pt.id}`;
       if (eqEl) eqEl.classList.add("active");
 
-      if (!("speechSynthesis" in window)) {
+      const onSingleEnd = () => {
+        tvBroadcastState.isSpeakingSingle = false;
+        if (eqEl) eqEl.classList.remove("active");
         setTimeout(() => {
-          if (tickerEl) tickerEl.classList.add("hidden");
-          if (eqEl) eqEl.classList.remove("active");
-        }, 8000);
-        return;
-      }
+          if (!tvBroadcastState.isActive && tickerEl) {
+            tickerEl.classList.add("hidden");
+          }
+        }, 2500);
+      };
 
-      speakVietnamese(text, {
-        onend: () => {
-          if (eqEl) eqEl.classList.remove("active");
-          setTimeout(() => {
-            if (!tvBroadcastState.isActive && tickerEl) {
-              tickerEl.classList.add("hidden");
-            }
-          }, 2500);
-        },
-        onerror: () => {
-          if (eqEl) eqEl.classList.remove("active");
+      ensureVietnameseVoice((viVoice) => {
+        if (!viVoice) {
+          const helpBanner = document.getElementById("tv-voice-help-banner");
+          if (helpBanner) helpBanner.classList.remove("hidden");
+          showLiveSyncToast("⚠️ Chưa có giọng đọc tiếng Việt trên trình duyệt này. Nhấp chuột phải vào file ➔ Mở bằng Microsoft Edge để nghe!", true);
+          setTimeout(onSingleEnd, 6000);
+          return;
         }
-      });
+
+        window.speechSynthesis.cancel();
+        const utter = new SpeechSynthesisUtterance(text);
+        utter.voice = viVoice;
+        utter.lang = viVoice.lang || "vi-VN";
+        utter.rate = tvBroadcastState.speechRate;
+        utter.pitch = 1.05;
+
+        utter.onend = onSingleEnd;
+        utter.onerror = onSingleEnd;
+
+        window.speechSynthesis.speak(utter);
+      }, 1200);
     }
 
     // Sự kiện điều khiển Bản tin Tivi
@@ -4256,8 +4430,30 @@
       stopTvBroadcast();
     });
 
+    document.getElementById("btn-tv-test-voice").addEventListener("click", () => {
+      testVietnameseVoice();
+    });
+
+    const selectVoiceEl = document.getElementById("select-tv-voice");
+    if (selectVoiceEl) {
+      selectVoiceEl.addEventListener("change", (e) => {
+        const val = e.target.value;
+        if (val === "none") {
+          const helpBanner = document.getElementById("tv-voice-help-banner");
+          if (helpBanner) helpBanner.classList.remove("hidden");
+          return;
+        }
+        const voices = window.speechSynthesis.getVoices() || [];
+        const chosen = voices.find((v) => v.name === val);
+        if (chosen) {
+          tvBroadcastState.vietnameseVoice = chosen;
+          showLiveSyncToast(`🎙️ Đã chọn phát thanh viên: ${chosen.name}`);
+        }
+      });
+    }
+
     document.getElementById("btn-tv-pause-resume").addEventListener("click", () => {
-      if (!tvBroadcastState.isActive) return;
+      if (!tvBroadcastState.isActive && !tvBroadcastState.isSpeakingSingle) return;
       const btn = document.getElementById("btn-tv-pause-resume");
       const eqEl = document.getElementById("tv-equalizer");
 
@@ -4265,9 +4461,7 @@
         tvBroadcastState.isPaused = false;
         btn.textContent = "⏸ Tạm dừng";
         if (eqEl) eqEl.classList.add("active");
-        if (tvBroadcastState.onlineAudio && tvBroadcastState.onlineAudio.paused) {
-          tvBroadcastState.onlineAudio.play();
-        } else if (window.speechSynthesis && window.speechSynthesis.paused) {
+        if (window.speechSynthesis && window.speechSynthesis.paused) {
           window.speechSynthesis.resume();
         } else {
           playTvSegment(tvBroadcastState.currentStep);
@@ -4276,7 +4470,6 @@
         tvBroadcastState.isPaused = true;
         btn.textContent = "▶ Tiếp tục";
         if (eqEl) eqEl.classList.remove("active");
-        if (tvBroadcastState.onlineAudio) tvBroadcastState.onlineAudio.pause();
         if (window.speechSynthesis) {
           window.speechSynthesis.pause();
         }
@@ -4338,11 +4531,25 @@
         if (savedUrl && document.getElementById("input-sheet-url")) {
           document.getElementById("input-sheet-url").value = savedUrl;
         }
+        // Xóa triệt để các bộ nhớ đệm phiên bản cũ có chứa ngày 18/10 hoặc 21/10
+        ["VN_EXTREME_WEATHER_POINTS_V1", "VN_EXTREME_WEATHER_POINTS_V2", "VN_EXTREME_WEATHER_POINTS_V3", "VN_EXTREME_WEATHER_POINTS_V4"].forEach((oldKey) => {
+          try { localStorage.removeItem(oldKey); } catch (e) {}
+        });
         const savedPts = localStorage.getItem(STORAGE_KEY_POINTS);
         if (savedPts) {
           const parsed = JSON.parse(savedPts);
           if (Array.isArray(parsed) && parsed.length > 0) {
-            WEATHER_POINTS = parsed;
+            WEATHER_POINTS = parsed.map((pt) => {
+              const dInfo = getDynamicHanoiDateParts(pt.timestamp);
+              return {
+                ...pt,
+                shortLabel: buildDynamicShortLabel(pt.id, pt.locationName, pt.currentTemp),
+                hazardBadge: sanitizeStaleDateText(pt.hazardBadge, dInfo.shortDate, dInfo.fullDate),
+                currentSummary: sanitizeStaleDateText(pt.currentSummary, dInfo.shortDate, dInfo.fullDate),
+                forecastDetail: sanitizeStaleDateText(pt.forecastDetail, dInfo.shortDate, dInfo.fullDate),
+                sourceName: `NCHMF - Cập nhật ${dInfo.shortDate}`
+              };
+            });
           }
         }
         lastSheetSignature = JSON.stringify(WEATHER_POINTS);
